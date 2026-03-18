@@ -38,7 +38,7 @@ Rules:
 - Use your tools to search for recipe inspiration from the web
 - Respond ONLY with the JSON object, no other text`
 
-func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string) string {
+func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cuisineCounts map[string]int) string {
 	var parts []string
 	parts = append(parts, "Generate a dinner recipe")
 
@@ -62,6 +62,14 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string) st
 	}
 
 	prompt := strings.Join(parts, " ") + "."
+
+	if req.CuisineType == "" && len(cuisineCounts) > 0 {
+		var dist []string
+		for cuisine, count := range cuisineCounts {
+			dist = append(dist, fmt.Sprintf("%s (%d)", cuisine, count))
+		}
+		prompt += "\n\nThe recipe collection currently has: " + strings.Join(dist, ", ") + ". Choose a cuisine that is underrepresented to keep the collection balanced."
+	}
 
 	if len(existingTitles) > 0 {
 		prompt += "\n\nDo NOT duplicate any of these existing recipes: " + strings.Join(existingTitles, ", ") + "."

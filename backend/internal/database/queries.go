@@ -121,6 +121,25 @@ func (q *Queries) ListRecipeTitles(ctx context.Context) ([]string, error) {
 	return titles, rows.Err()
 }
 
+func (q *Queries) ListCuisineCounts(ctx context.Context) (map[string]int, error) {
+	rows, err := q.pool.Query(ctx, "SELECT cuisine_type, COUNT(*) FROM recipes WHERE cuisine_type != '' GROUP BY cuisine_type ORDER BY COUNT(*) DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var cuisine string
+		var count int
+		if err := rows.Scan(&cuisine, &count); err != nil {
+			return nil, err
+		}
+		counts[cuisine] = count
+	}
+	return counts, rows.Err()
+}
+
 func (q *Queries) SearchRecipes(ctx context.Context, req models.SearchRequest) ([]models.Recipe, int, error) {
 	if req.Limit <= 0 {
 		req.Limit = 20

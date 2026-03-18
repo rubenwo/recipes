@@ -32,8 +32,12 @@ func (h *GenerateHandler) Single(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Warning: could not fetch existing titles: %v", err)
 	}
+	cuisineCounts, err := h.queries.ListCuisineCounts(r.Context())
+	if err != nil {
+		log.Printf("Warning: could not fetch cuisine counts: %v", err)
+	}
 
-	prompt := llm.BuildGeneratePrompt(req, titles)
+	prompt := llm.BuildGeneratePrompt(req, titles, cuisineCounts)
 	h.streamGeneration(w, r, prompt)
 }
 
@@ -65,13 +69,17 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Warning: could not fetch existing titles: %v", err)
 	}
+	cuisineCounts, err := h.queries.ListCuisineCounts(r.Context())
+	if err != nil {
+		log.Printf("Warning: could not fetch cuisine counts: %v", err)
+	}
 
 	for i := 0; i < req.Count; i++ {
 		events := make(chan llm.SSEEvent, 10)
 
 		go func() {
 			defer close(events)
-			prompt := llm.BuildGeneratePrompt(req.GenerateRequest, titles)
+			prompt := llm.BuildGeneratePrompt(req.GenerateRequest, titles, cuisineCounts)
 			prompt += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch)", i+1, req.Count)
 			_, messages, err := h.orchestrator.Generate(r.Context(), prompt, events)
 			if err != nil {
