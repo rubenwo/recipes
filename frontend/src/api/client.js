@@ -89,6 +89,40 @@ export function getPlanIngredients(planId) {
   return request(`/plans/${planId}/ingredients`);
 }
 
+// Settings
+export function listProviders() {
+  return request('/settings/providers');
+}
+
+export function createProvider(provider) {
+  return request('/settings/providers', {
+    method: 'POST',
+    body: JSON.stringify(provider),
+  });
+}
+
+export function updateProvider(id, provider) {
+  return request(`/settings/providers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(provider),
+  });
+}
+
+export function deleteProvider(id) {
+  return request(`/settings/providers/${id}`, { method: 'DELETE' });
+}
+
+export function getSettings() {
+  return request('/settings');
+}
+
+export function updateSettings(settings) {
+  return request('/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+}
+
 export function generateStream(endpoint, body) {
   return fetch(`${API_BASE}/generate/${endpoint}`, {
     method: 'POST',

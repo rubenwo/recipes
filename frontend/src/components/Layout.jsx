@@ -13,6 +13,7 @@ export default function Layout({ children }) {
             <Link to="/import" className={location.pathname === '/import' ? 'active' : ''}>Import</Link>
             <Link to="/plans" className={location.pathname.startsWith('/plans') ? 'active' : ''}>Plans</Link>
             <Link to="/library" className={location.pathname === '/library' ? 'active' : ''}>Library</Link>
+            <Link to="/settings" className={location.pathname === '/settings' ? 'active' : ''}>Settings</Link>
           </nav>
         </div>
       </header>

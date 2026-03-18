@@ -7,7 +7,7 @@ import (
 	"github.com/rubenwoldhuis/recipes/internal/handlers"
 )
 
-func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handlers.MealPlanHandler, corsOrigin string) *chi.Mux {
+func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handlers.MealPlanHandler, s *handlers.SettingsHandler, corsOrigin string) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(LoggingMiddleware)
@@ -41,6 +41,13 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Post("/plans/{id}/recipes", mp.AddRecipe)
 		r.Delete("/plans/{id}/recipes/{recipeId}", mp.RemoveRecipe)
 		r.Patch("/plans/{id}/recipes/{recipeId}", mp.UpdateRecipe)
+
+		r.Get("/settings/providers", s.ListProviders)
+		r.Post("/settings/providers", s.CreateProvider)
+		r.Patch("/settings/providers/{id}", s.UpdateProvider)
+		r.Delete("/settings/providers/{id}", s.DeleteProvider)
+		r.Get("/settings", s.GetSettings)
+		r.Patch("/settings", s.UpdateSettings)
 	})
 
 	r.Handle("/*", frontend.Handler())

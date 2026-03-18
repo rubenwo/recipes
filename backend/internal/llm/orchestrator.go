@@ -23,20 +23,20 @@ type SSEEvent struct {
 }
 
 type Orchestrator struct {
-	client        *Client
+	pool          *ClientPool
 	tools         []Tool
 	toolExecutor  ToolExecutor
 	maxIterations int
 }
 
-func NewOrchestrator(client *Client, toolExecutor ToolExecutor, maxIterations int, edamamEnabled bool) *Orchestrator {
+func NewOrchestrator(pool *ClientPool, toolExecutor ToolExecutor, maxIterations int, edamamEnabled bool) *Orchestrator {
 	tools := []Tool{WebSearchTool, DBSearchTool}
 	if edamamEnabled {
 		tools = append(tools, EdamamSearchTool)
 	}
 
 	return &Orchestrator{
-		client:        client,
+		pool:          pool,
 		tools:         tools,
 		toolExecutor:  toolExecutor,
 		maxIterations: maxIterations,
@@ -44,11 +44,20 @@ func NewOrchestrator(client *Client, toolExecutor ToolExecutor, maxIterations in
 }
 
 func (o *Orchestrator) Model() string {
-	return o.client.Model()
+	return o.pool.Model()
+}
+
+func (o *Orchestrator) Pool() *ClientPool {
+	return o.pool
 }
 
 func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events chan<- SSEEvent) (*models.Recipe, []Message, error) {
-	events <- SSEEvent{Type: "status", Message: "Starting recipe generation..."}
+	client := o.pool.Acquire()
+	if client == nil {
+		return nil, nil, fmt.Errorf("no Ollama providers available")
+	}
+
+	events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Starting recipe generation (using %s)...", client.Model())}
 
 	messages := []Message{
 		{Role: "system", Content: SystemPrompt()},
@@ -58,7 +67,7 @@ func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events c
 	for i := 0; i < o.maxIterations; i++ {
 		events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Thinking... (iteration %d/%d)", i+1, o.maxIterations)}
 
-		resp, err := o.client.Chat(ctx, messages, o.tools)
+		resp, err := client.Chat(ctx, messages, o.tools)
 		if err != nil {
 			return nil, messages, fmt.Errorf("chat request failed: %w", err)
 		}
@@ -66,7 +75,7 @@ func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events c
 		messages = append(messages, resp.Message)
 
 		if len(resp.Message.ToolCalls) == 0 {
-			recipe, err := o.parseRecipe(resp.Message.Content, events)
+			recipe, err := o.parseRecipe(resp.Message.Content, client, events)
 			return recipe, messages, err
 		}
 
@@ -97,16 +106,16 @@ func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events c
 	}
 
 	events <- SSEEvent{Type: "status", Message: "Max iterations reached, generating final recipe..."}
-	resp, err := o.client.Chat(ctx, messages, nil)
+	resp, err := client.Chat(ctx, messages, nil)
 	if err != nil {
 		return nil, messages, fmt.Errorf("final chat request failed: %w", err)
 	}
 	messages = append(messages, resp.Message)
-	recipe, err := o.parseRecipe(resp.Message.Content, events)
+	recipe, err := o.parseRecipe(resp.Message.Content, client, events)
 	return recipe, messages, err
 }
 
-func (o *Orchestrator) parseRecipe(content string, events chan<- SSEEvent) (*models.Recipe, error) {
+func (o *Orchestrator) parseRecipe(content string, client *Client, events chan<- SSEEvent) (*models.Recipe, error) {
 	content = strings.TrimSpace(content)
 
 	if idx := strings.Index(content, "{"); idx >= 0 {
@@ -120,7 +129,7 @@ func (o *Orchestrator) parseRecipe(content string, events chan<- SSEEvent) (*mod
 		return nil, fmt.Errorf("failed to parse recipe JSON: %w\nraw content: %s", err, content)
 	}
 
-	recipe.GeneratedByModel = o.client.Model()
+	recipe.GeneratedByModel = client.Model()
 
 	events <- SSEEvent{Type: "recipe", Data: recipe}
 	return &recipe, nil

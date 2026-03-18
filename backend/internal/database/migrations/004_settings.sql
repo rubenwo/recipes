@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS ollama_providers (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    host TEXT NOT NULL,
+    model TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
