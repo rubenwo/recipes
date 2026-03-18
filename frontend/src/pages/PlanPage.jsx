@@ -4,9 +4,10 @@ import {
   getPlan, createPlan, listPlans, deletePlan,
   addRecipeToPlan, removeRecipeFromPlan, updatePlanRecipe,
   listRecipes, updatePlan, getPlanIngredients, getPlanSuggestions,
-  saveRecipe,
+  saveRecipe, randomizePlan,
 } from '../api/client';
 import RecipeCard from '../components/RecipeCard';
+import { filterRecipes } from '../utils/fuzzyMatch';
 
 export default function PlanPage() {
   const { id } = useParams();
@@ -81,6 +82,10 @@ function PlanDetail({ planId }) {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState({});
   const [ingredients, setIngredients] = useState([]);
+  const [recipeFilter, setRecipeFilter] = useState('');
+  const [randomDays, setRandomDays] = useState([4]);
+  const [randomizing, setRandomizing] = useState(false);
+  const [loadingIngredients, setLoadingIngredients] = useState(true);
 
   const loadPlan = useCallback(async () => {
     const data = await getPlan(planId);
@@ -89,16 +94,18 @@ function PlanDetail({ planId }) {
   }, [planId]);
 
   const loadIngredients = useCallback(async () => {
+    setLoadingIngredients(true);
     try {
       const data = await getPlanIngredients(planId);
       setIngredients(data || []);
     } catch { /* ignore if plan has no recipes */ }
+    finally { setLoadingIngredients(false); }
   }, [planId]);
 
   useEffect(() => { loadPlan(); loadIngredients(); }, [loadPlan, loadIngredients]);
 
   useEffect(() => {
-    listRecipes(100, 0).then(data => setRecipes(data.recipes || []));
+    listRecipes(500, 0).then(data => setRecipes(data.recipes || []));
   }, []);
 
   const planRecipeIds = new Set((plan?.recipes || []).map(r => r.recipe_id));
@@ -144,6 +151,18 @@ function PlanDetail({ planId }) {
     setPlan(updated);
   };
 
+  const handleRandomize = async () => {
+    setRandomizing(true);
+    try {
+      const updated = await randomizePlan(planId, randomDays);
+      updatePlanAndIngredients(updated);
+    } catch (err) {
+      alert('Failed to randomize: ' + err.message);
+    } finally {
+      setRandomizing(false);
+    }
+  };
+
   if (loading) return <p className="empty-state">Loading...</p>;
   if (!plan) return <p className="empty-state">Plan not found.</p>;
 
@@ -171,8 +190,48 @@ function PlanDetail({ planId }) {
         />
       )}
 
-      {isDraft && (
+      {isDraft && loadingIngredients && (
+        <div className="plan-section plan-loading">
+          <div className="plan-loading-spinner" />
+          <p>Normalizing ingredients...</p>
+        </div>
+      )}
+
+      {isDraft && !loadingIngredients && (
         <>
+          {/* Randomize bar */}
+          <div className="plan-section plan-randomize-bar">
+            <h3>Randomize</h3>
+            <p className="plan-randomize-hint">Set servings per day, then randomize to auto-fill the plan.</p>
+            <div className="plan-randomize-days">
+              {randomDays.map((s, i) => (
+                <div key={i} className="plan-randomize-day">
+                  <label>Day {i + 1}</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={s}
+                    onChange={e => setRandomDays(prev => prev.map((v, j) => j === i ? (parseInt(e.target.value) || 1) : v))}
+                  />
+                  {randomDays.length > 1 && (
+                    <button className="btn btn-danger btn-sm" onClick={() => setRandomDays(prev => prev.filter((_, j) => j !== i))}>
+                      &times;
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="plan-randomize-actions">
+              <button className="btn btn-secondary" onClick={() => setRandomDays(prev => [...prev, prev[prev.length - 1] || 4])}>
+                + Add Day
+              </button>
+              <button className="btn btn-primary" onClick={handleRandomize} disabled={randomizing}>
+                {randomizing ? 'Randomizing...' : `Randomize ${randomDays.length} days`}
+              </button>
+            </div>
+          </div>
+
           {/* Selected recipes */}
           <div className="plan-section">
             <h3>Selected Recipes ({(plan.recipes || []).length})</h3>
@@ -211,8 +270,16 @@ function PlanDetail({ planId }) {
           {/* Recipe browser */}
           <div className="plan-section">
             <h3>Add Recipes</h3>
+            <div className="search-bar" style={{ marginBottom: 16 }}>
+              <input
+                type="text"
+                placeholder="Filter recipes..."
+                value={recipeFilter}
+                onChange={e => setRecipeFilter(e.target.value)}
+              />
+            </div>
             <div className="plan-recipe-browser">
-              {recipes.filter(r => !planRecipeIds.has(r.id)).map(recipe => (
+              {filterRecipes(recipeFilter, recipes).filter(r => !planRecipeIds.has(r.id)).map(recipe => (
                 <div key={recipe.id} className="plan-browse-item">
                   <div className="plan-browse-info">
                     <strong>{recipe.title}</strong>
@@ -238,8 +305,8 @@ function PlanDetail({ planId }) {
                   </div>
                 </div>
               ))}
-              {recipes.filter(r => !planRecipeIds.has(r.id)).length === 0 && (
-                <p className="empty-state">All recipes are already in this plan.</p>
+              {filterRecipes(recipeFilter, recipes).filter(r => !planRecipeIds.has(r.id)).length === 0 && (
+                <p className="empty-state">{recipeFilter ? 'No recipes match your filter.' : 'All recipes are already in this plan.'}</p>
               )}
             </div>
           </div>

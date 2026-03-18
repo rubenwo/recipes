@@ -163,7 +163,7 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 14px; color: var(--text);
 }
 
 .form-group { margin-bottom: 20px; }
-.form-group label {
+.form-group > label {
   display: block;
   font-size: 14px;
   font-weight: 600;
@@ -290,11 +290,34 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 14px; color: var(--text);
 /* Review Panel */
 .review-panel { margin-top: 0; }
 .review-item {
+  position: relative;
   background: var(--surface);
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 16px;
   box-shadow: var(--shadow);
+}
+.review-dismiss {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--bg);
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.review-dismiss:hover {
+  background: #fee2e2;
+  color: var(--danger);
 }
 .review-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 .refine-section { display: flex; gap: 8px; flex: 1; min-width: 200px; }
@@ -713,6 +736,72 @@ a, button, input, select, textarea { transition: all 0.2s ease; }
   padding: 14px 24px;
   font-size: 16px;
   margin-top: 20px;
+}
+
+/* Plan Loading */
+.plan-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 20px;
+}
+.plan-loading p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+}
+.plan-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: plan-spin 0.8s linear infinite;
+}
+@keyframes plan-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Randomize */
+.plan-randomize-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.plan-randomize-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.plan-randomize-day {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-randomize-day label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.plan-randomize-day input[type="number"] {
+  width: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  text-align: center;
+}
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: unset;
+}
+.plan-randomize-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* Recipe Browser */
