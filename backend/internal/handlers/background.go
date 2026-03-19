@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strconv"
 	"strings"
@@ -156,6 +157,17 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 	}
 }
 
+func (b *BackgroundGenerator) saveChat(ctx context.Context, prompt string, messages []llm.Message) {
+	messagesJSON, err := json.Marshal(messages)
+	if err != nil {
+		log.Printf("Background generation: failed to marshal chat messages: %v", err)
+		return
+	}
+	if err := b.queries.CreateGenerationChat(ctx, prompt, b.orchestrator.Model(), messagesJSON); err != nil {
+		log.Printf("Background generation: failed to save chat: %v", err)
+	}
+}
+
 // generateWithRetry attempts generation up to 1+maxRetries times, retrying on JSON parse
 // errors or wrong serving count. It stops early if the next scheduled run is imminent.
 func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt string, idx, total, wantServings, maxRetries int, nextRun time.Time) *models.Recipe {
@@ -175,7 +187,7 @@ func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt stri
 		}()
 
 		// Prefer providers tagged "background" for scheduled tasks (slower/always-on hardware).
-		recipe, _, err := b.orchestrator.GenerateWithTag(ctx, prompt, events, "background")
+		recipe, messages, err := b.orchestrator.GenerateWithTag(ctx, prompt, events, "background")
 		if err != nil {
 			if strings.Contains(err.Error(), "failed to parse recipe JSON") && attempt < attempts {
 				log.Printf("Background generation: recipe %d/%d attempt %d/%d failed (invalid JSON), retrying: %v", idx, total, attempt, attempts, err)
@@ -194,6 +206,7 @@ func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt stri
 		} else if attempt > 1 {
 			log.Printf("Background generation: recipe %d/%d succeeded on attempt %d", idx, total, attempt)
 		}
+		b.saveChat(ctx, prompt, messages)
 		return recipe
 	}
 	return nil
