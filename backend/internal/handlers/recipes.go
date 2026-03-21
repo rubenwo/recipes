@@ -3,15 +3,16 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
-	"github.com/rubenwoldhuis/recipes/internal/database"
-	"github.com/rubenwoldhuis/recipes/internal/models"
-	"github.com/rubenwoldhuis/recipes/internal/tools"
+	"github.com/rubenwo/recipes/internal/database"
+	"github.com/rubenwo/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/tools"
 )
 
 type RecipeHandler struct {
@@ -85,7 +86,8 @@ func (h *RecipeHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *RecipeHandler) fetchAndStoreImage(ctx context.Context, id int, title string) {
-	imageURL, err := h.imageSearcher.SearchRecipeImage(ctx, title)
+	filename := fmt.Sprintf("recipe-%d", id)
+	imageURL, err := h.imageSearcher.SearchAndDownloadRecipeImage(ctx, title, filename)
 	if err != nil {
 		log.Printf("Auto image fetch for recipe %q: %v", title, err)
 		return
@@ -155,7 +157,8 @@ func (h *RecipeHandler) FetchImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imageURL, err := h.imageSearcher.SearchRecipeImage(r.Context(), recipe.Title)
+	filename := fmt.Sprintf("recipe-%d", id)
+	imageURL, err := h.imageSearcher.SearchAndDownloadRecipeImage(r.Context(), recipe.Title, filename)
 	if err != nil {
 		log.Printf("Image search for %q failed: %v", recipe.Title, err)
 		writeError(w, http.StatusBadGateway, "could not find an image: "+err.Error())

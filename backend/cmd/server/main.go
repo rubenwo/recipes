@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rubenwoldhuis/recipes/internal/config"
-	"github.com/rubenwoldhuis/recipes/internal/database"
-	"github.com/rubenwoldhuis/recipes/internal/handlers"
-	"github.com/rubenwoldhuis/recipes/internal/llm"
-	"github.com/rubenwoldhuis/recipes/internal/models"
-	"github.com/rubenwoldhuis/recipes/internal/server"
-	"github.com/rubenwoldhuis/recipes/internal/tools"
+	"github.com/rubenwo/recipes/internal/config"
+	"github.com/rubenwo/recipes/internal/database"
+	"github.com/rubenwo/recipes/internal/handlers"
+	"github.com/rubenwo/recipes/internal/llm"
+	"github.com/rubenwo/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/server"
+	"github.com/rubenwo/recipes/internal/tools"
 )
 
 func main() {
@@ -110,7 +110,7 @@ func main() {
 
 	hub := llm.NewHub()
 
-	imageSearcher := tools.NewImageSearcher(cfg.Search.Timeout)
+	imageSearcher := tools.NewImageSearcher(cfg.Search.Timeout, cfg.Server.ImagesDir)
 	recipeHandler := handlers.NewRecipeHandler(queries, imageSearcher)
 	generateHandler := handlers.NewGenerateHandler(orchestrator, queries)
 	mealPlanHandler := handlers.NewMealPlanHandler(queries, orchestrator)
@@ -121,7 +121,7 @@ func main() {
 	bgGenerator.Start(ctx)
 	log.Println("Background recipe generator started")
 
-	router := server.NewRouter(recipeHandler, generateHandler, mealPlanHandler, settingsHandler, pendingHandler, cfg.Server.CORSOrigin)
+	router := server.NewRouter(recipeHandler, generateHandler, mealPlanHandler, settingsHandler, pendingHandler, cfg.Server.CORSOrigin, cfg.Server.ImagesDir)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),

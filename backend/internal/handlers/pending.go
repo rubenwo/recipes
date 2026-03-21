@@ -9,10 +9,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
-	"github.com/rubenwoldhuis/recipes/internal/database"
-	"github.com/rubenwoldhuis/recipes/internal/llm"
-	"github.com/rubenwoldhuis/recipes/internal/models"
-	"github.com/rubenwoldhuis/recipes/internal/tools"
+	"github.com/rubenwo/recipes/internal/database"
+	"github.com/rubenwo/recipes/internal/llm"
+	"github.com/rubenwo/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/tools"
 )
 
 type PendingHandler struct {
@@ -98,7 +98,8 @@ func (h *PendingHandler) FetchImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imageURL, err := h.imageSearcher.SearchRecipeImage(r.Context(), title)
+	filename := fmt.Sprintf("pending-%d", id)
+	imageURL, err := h.imageSearcher.SearchAndDownloadRecipeImage(r.Context(), title, filename)
 	if err != nil {
 		log.Printf("Image search for pending recipe %q failed: %v", title, err)
 		writeError(w, http.StatusBadGateway, "could not find an image: "+err.Error())

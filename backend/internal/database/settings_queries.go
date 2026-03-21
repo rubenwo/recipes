@@ -3,7 +3,8 @@ package database
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
-	"github.com/rubenwoldhuis/recipes/internal/models"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rubenwo/recipes/internal/models"
 )
 
 func (q *Queries) ListOllamaProviders(ctx context.Context) ([]models.OllamaProvider, error) {
@@ -53,9 +54,9 @@ func (q *Queries) CreateOllamaProvider(ctx context.Context, p *models.OllamaProv
 	}
 	return q.pool.QueryRow(ctx, `
 		INSERT INTO ollama_providers (name, host, model, enabled, health_status, tags)
-		VALUES ($1, $2, $3, $4, 'unknown', $5::TEXT[])
+		VALUES ($1, $2, $3, $4, 'unknown', $5)
 		RETURNING id, created_at`,
-		p.Name, p.Host, p.Model, p.Enabled, p.Tags,
+		p.Name, p.Host, p.Model, p.Enabled, pgtype.FlatArray[string](p.Tags),
 	).Scan(&p.ID, &p.CreatedAt)
 }
 
@@ -65,9 +66,9 @@ func (q *Queries) UpdateOllamaProvider(ctx context.Context, p *models.OllamaProv
 	}
 	tag, err := q.pool.Exec(ctx, `
 		UPDATE ollama_providers
-		SET name = $2, host = $3, model = $4, enabled = $5, health_status = $6, last_error = $7, tags = $8::TEXT[]
+		SET name = $2, host = $3, model = $4, enabled = $5, health_status = $6, last_error = $7, tags = $8
 		WHERE id = $1`,
-		p.ID, p.Name, p.Host, p.Model, p.Enabled, p.HealthStatus, p.LastError, p.Tags)
+		p.ID, p.Name, p.Host, p.Model, p.Enabled, p.HealthStatus, p.LastError, pgtype.FlatArray[string](p.Tags))
 	if err != nil {
 		return err
 	}

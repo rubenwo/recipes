@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
-	"github.com/rubenwoldhuis/recipes/internal/database"
-	"github.com/rubenwoldhuis/recipes/internal/llm"
-	"github.com/rubenwoldhuis/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/database"
+	"github.com/rubenwo/recipes/internal/llm"
+	"github.com/rubenwo/recipes/internal/models"
 )
 
 type SettingsHandler struct {

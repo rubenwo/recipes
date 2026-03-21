@@ -1,4 +1,4 @@
-module github.com/rubenwoldhuis/recipes
+module github.com/rubenwo/recipes
 
 go 1.26.1
 

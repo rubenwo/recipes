@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rubenwoldhuis/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/models"
 )
 
 type Queries struct {

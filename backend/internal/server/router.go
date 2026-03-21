@@ -1,13 +1,15 @@
 package server
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/rubenwoldhuis/recipes/internal/frontend"
-	"github.com/rubenwoldhuis/recipes/internal/handlers"
+	"github.com/rubenwo/recipes/internal/frontend"
+	"github.com/rubenwo/recipes/internal/handlers"
 )
 
-func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handlers.MealPlanHandler, s *handlers.SettingsHandler, p *handlers.PendingHandler, corsOrigin string) *chi.Mux {
+func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handlers.MealPlanHandler, s *handlers.SettingsHandler, p *handlers.PendingHandler, corsOrigin, imagesDir string) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(LoggingMiddleware)
@@ -58,6 +60,10 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Get("/settings", s.GetSettings)
 		r.Patch("/settings", s.UpdateSettings)
 	})
+
+	if imagesDir != "" {
+		r.Handle("/images/*", http.StripPrefix("/images/", http.FileServer(http.Dir(imagesDir))))
+	}
 
 	r.Handle("/*", frontend.Handler())
 

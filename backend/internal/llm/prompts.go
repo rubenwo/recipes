@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rubenwoldhuis/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/models"
 )
 
 const systemPrompt = `You are a creative chef and recipe developer. Generate detailed, practical dinner recipes.
@@ -79,15 +79,59 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 }
 
 func BuildRefinePrompt(recipe models.Recipe, feedback string) string {
+	var ingredientLines []string
+	for _, ing := range recipe.Ingredients {
+		line := fmt.Sprintf("- %s: %.4g %s", ing.Name, ing.Amount, ing.Unit)
+		if ing.Notes != "" {
+			line += fmt.Sprintf(" (%s)", ing.Notes)
+		}
+		ingredientLines = append(ingredientLines, line)
+	}
+
+	var instructionLines []string
+	for i, step := range recipe.Instructions {
+		instructionLines = append(instructionLines, fmt.Sprintf("%d. %s", i+1, step))
+	}
+
+	var dietaryLines []string
+	if len(recipe.DietaryRestrictions) > 0 {
+		dietaryLines = recipe.DietaryRestrictions
+	}
+
 	return fmt.Sprintf(`Here is a recipe that needs refinement:
 
 Title: %s
 Description: %s
 Cuisine: %s
+Prep time: %d minutes
+Cook time: %d minutes
+Servings: %d
+Difficulty: %s
+Dietary restrictions: %s
+Tags: %s
+
+Ingredients:
+%s
+
+Instructions:
+%s
 
 The user wants the following changes: %s
 
-Generate an improved version of this recipe incorporating the feedback. Respond with the complete updated recipe JSON.`, recipe.Title, recipe.Description, recipe.CuisineType, feedback)
+Generate an improved version of this recipe incorporating the feedback. Respond with the complete updated recipe JSON.`,
+		recipe.Title,
+		recipe.Description,
+		recipe.CuisineType,
+		recipe.PrepTimeMinutes,
+		recipe.CookTimeMinutes,
+		recipe.Servings,
+		recipe.Difficulty,
+		strings.Join(dietaryLines, ", "),
+		strings.Join(recipe.Tags, ", "),
+		strings.Join(ingredientLines, "\n"),
+		strings.Join(instructionLines, "\n"),
+		feedback,
+	)
 }
 
 func BuildLeftoverPrompt(ingredients []string, existingTitles []string) string {

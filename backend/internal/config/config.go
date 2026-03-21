@@ -18,6 +18,7 @@ type Config struct {
 type ServerConfig struct {
 	Port       int    `yaml:"port"`
 	CORSOrigin string `yaml:"cors_origin"`
+	ImagesDir  string `yaml:"images_dir"`
 }
 
 type DatabaseConfig struct {
@@ -72,6 +73,7 @@ func Load(path string) (*Config, error) {
 		Server: ServerConfig{
 			Port:       8080,
 			CORSOrigin: "http://localhost:5173",
+			ImagesDir:  "./images",
 		},
 		Database: DatabaseConfig{
 			Host:    "localhost",

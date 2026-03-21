@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 func main() {
@@ -58,7 +59,11 @@ func build() error {
 
 	// Build backend
 	fmt.Println("Building backend...")
-	goBuild := exec.Command("go", "build", "-buildvcs=false", "-o", "server.exe", "./cmd/server")
+	binary := "server"
+	if runtime.GOOS == "windows" {
+		binary = "server.exe"
+	}
+	goBuild := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "./cmd/server")
 	goBuild.Dir = "backend"
 	goBuild.Stdout = os.Stdout
 	goBuild.Stderr = os.Stderr
@@ -90,7 +95,11 @@ func clean() error {
 		return fmt.Errorf("restoring .gitkeep: %w", err)
 	}
 
-	serverPath := filepath.Join("backend", "server")
+	serverBinary := "server"
+	if runtime.GOOS == "windows" {
+		serverBinary = "server.exe"
+	}
+	serverPath := filepath.Join("backend", serverBinary)
 	fmt.Printf("Removing %s\n", serverPath)
 	os.Remove(serverPath)
 

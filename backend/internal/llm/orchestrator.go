@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/rubenwoldhuis/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/models"
 )
 
 type ToolExecutor interface {

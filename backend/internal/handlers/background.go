@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rubenwoldhuis/recipes/internal/database"
-	"github.com/rubenwoldhuis/recipes/internal/llm"
-	"github.com/rubenwoldhuis/recipes/internal/models"
-	"github.com/rubenwoldhuis/recipes/internal/tools"
+	"github.com/rubenwo/recipes/internal/database"
+	"github.com/rubenwo/recipes/internal/llm"
+	"github.com/rubenwo/recipes/internal/models"
+	"github.com/rubenwo/recipes/internal/tools"
 )
 
 // BackgroundGenerator periodically generates recipes and saves them to the DB.
@@ -136,7 +136,8 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 		// Fetch an image in the background; update the pending recipe and re-broadcast with image.
 		if b.imageSearcher != nil {
 			go func(r *models.Recipe) {
-				imageURL, err := b.imageSearcher.SearchRecipeImage(context.Background(), r.Title)
+				filename := "pending-" + strconv.Itoa(r.ID)
+				imageURL, err := b.imageSearcher.SearchAndDownloadRecipeImage(context.Background(), r.Title, filename)
 				if err != nil {
 					log.Printf("Background generation: image fetch for %q failed: %v", r.Title, err)
 					b.hub.Publish(llm.SSEEvent{Type: "pending_added", Data: *r})

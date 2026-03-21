@@ -1,0 +1,1 @@
+go run build.go && cd backend && server.exe && cd ..

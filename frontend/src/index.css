@@ -73,7 +73,8 @@ body {
   margin: 0 auto;
   padding: 36px 24px;
 }
-.main:has(.generate-page) {
+.main:has(.generate-page),
+.main:has(.library-page) {
   max-width: 1280px;
 }
 
@@ -408,8 +409,85 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 14px; color: var(--text);
 .dietary-tag { background: #ecfdf5; color: #166534; }
 .recipe-tags { margin-top: 10px; }
 
+/* Cuisine Groups (Library accordion) */
+.cuisine-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; align-items: start; }
+.cuisine-group--expanded { grid-column: 1 / -1; }
+
+.cuisine-group {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: var(--surface);
+}
+
+.cuisine-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  gap: 12px;
+  border-left: 4px solid var(--cuisine-color, var(--primary));
+  transition: background 0.15s;
+}
+.cuisine-group-header:hover { background: var(--bg); }
+.cuisine-group--expanded .cuisine-group-header { background: var(--bg); }
+
+.cuisine-group-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.cuisine-group-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.cuisine-group-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cuisine-group-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.cuisine-group-previews {
+  display: flex;
+  gap: 4px;
+}
+.cuisine-preview-img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  opacity: 0.85;
+}
+
+.cuisine-group-arrow {
+  font-size: 11px;
+  color: var(--text-secondary);
+  width: 16px;
+  text-align: center;
+}
+
+.cuisine-group-body {
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border);
+}
+
 /* Recipe List */
-.recipe-list { display: flex; flex-direction: column; gap: 16px; }
+.recipe-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .recipe-list .recipe-card {
   background: var(--surface);
   border-radius: var(--radius);

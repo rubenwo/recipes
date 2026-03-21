@@ -5,19 +5,112 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 )
 
 type ImageSearcher struct {
-	client *http.Client
+	client    *http.Client
+	imagesDir string
 }
 
-func NewImageSearcher(timeout time.Duration) *ImageSearcher {
-	return &ImageSearcher{client: &http.Client{Timeout: timeout}}
+func NewImageSearcher(timeout time.Duration, imagesDir string) *ImageSearcher {
+	return &ImageSearcher{client: &http.Client{Timeout: timeout}, imagesDir: imagesDir}
+}
+
+// SearchAndDownloadRecipeImage searches for an image, downloads it to the local images
+// directory, and returns a local URL path (e.g. /images/recipe-42.jpg). Falls back to
+// returning the external URL if download or save fails.
+func (s *ImageSearcher) SearchAndDownloadRecipeImage(ctx context.Context, recipeTitle, filename string) (string, error) {
+	remoteURL, err := s.SearchRecipeImage(ctx, recipeTitle)
+	if err != nil {
+		return "", err
+	}
+
+	if s.imagesDir == "" {
+		return remoteURL, nil
+	}
+
+	if err := os.MkdirAll(s.imagesDir, 0755); err != nil {
+		log.Printf("Image download: could not create images dir: %v", err)
+		return remoteURL, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", remoteURL, nil)
+	if err != nil {
+		return remoteURL, nil
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		log.Printf("Image download: failed to download %s: %v", remoteURL, err)
+		return remoteURL, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	ext := extFromContentType(resp.Header.Get("Content-Type"))
+	if ext == "" {
+		ext = extFromURL(remoteURL)
+	}
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	localPath := filepath.Join(s.imagesDir, filename+ext)
+	f, err := os.Create(localPath)
+	if err != nil {
+		log.Printf("Image download: could not create file %s: %v", localPath, err)
+		return remoteURL, nil
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := io.Copy(f, io.LimitReader(resp.Body, 10*1024*1024)); err != nil {
+		_ = os.Remove(localPath)
+		log.Printf("Image download: failed to write %s: %v", localPath, err)
+		return remoteURL, nil
+	}
+
+	return "/images/" + filename + ext, nil
+}
+
+func extFromContentType(ct string) string {
+	ct = strings.ToLower(ct)
+	switch {
+	case strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg"):
+		return ".jpg"
+	case strings.Contains(ct, "png"):
+		return ".png"
+	case strings.Contains(ct, "webp"):
+		return ".webp"
+	case strings.Contains(ct, "gif"):
+		return ".gif"
+	default:
+		return ""
+	}
+}
+
+func extFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	lower := strings.ToLower(u.Path)
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".webp", ".gif"} {
+		if strings.HasSuffix(lower, ext) {
+			if ext == ".jpeg" {
+				return ".jpg"
+			}
+			return ext
+		}
+	}
+	return ""
 }
 
 // SearchRecipeImage returns the first usable image URL for the given recipe title
