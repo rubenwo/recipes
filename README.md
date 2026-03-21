@@ -128,19 +128,6 @@ Open `http://<truenas-ip>:8080` in your browser. The recipes app should be runni
 
 When a new image is pushed to GHCR, TrueNAS does not auto-update. To update manually:
 
-1. SSH into TrueNAS
-2. Run:
-
-```bash
-# Find the app namespace (usually ix-<appname>)
-k3s kubectl get namespaces | grep recipes
-
-# Restart the deployment to pull the new :latest image
-k3s kubectl rollout restart deployment/recipes -n ix-recipes
-```
-
-Or via the TrueNAS UI:
-
 1. Go to **Apps → Installed Apps → recipes**
 2. Click the three-dot menu → **Edit**
 3. Change the Image Tag to the specific SHA you want (visible on the [GHCR page](https://github.com/rubenwo/recipes/pkgs/container/recipes))
