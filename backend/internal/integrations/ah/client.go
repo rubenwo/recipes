@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -134,12 +136,19 @@ func (c *Client) SearchProduct(query string) (*Product, error) {
 		return nil, fmt.Errorf("AH search failed with status %d", resp.StatusCode)
 	}
 
+	rawBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read AH search response body: %w", err)
+	}
+	log.Printf("AH search query=%q status=%d body=%s", query, resp.StatusCode, string(rawBody))
+
 	var sr searchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+	if err := json.Unmarshal(rawBody, &sr); err != nil {
 		return nil, fmt.Errorf("failed to decode AH search response: %w", err)
 	}
 
 	for _, card := range sr.Cards {
+		log.Printf("AH card type=%q products=%d", card.Type, len(card.Products))
 		if card.Type == "default" && len(card.Products) > 0 {
 			p := card.Products[0]
 			imageURL := ""
