@@ -407,7 +407,7 @@ h3 {
   color: var(--text-secondary);
 }
 .recipe-card-instructions .instructions-list { padding-left: 18px; }
-.recipe-card-instructions .instructions-list li { font-size: 13px; padding: 4px 0; line-height: 1.55; }
+.recipe-card-instructions .instructions-list li { font-size: 13px; padding: 4px 0 4px 46px; line-height: 1.55; }
 .recipe-card-actions { display: flex; gap: 8px; margin-top: 14px; }
 
 .cuisine-badge {
@@ -929,15 +929,19 @@ a, button, input, select, textarea { transition: all 0.15s ease; }
 .provider-model { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px; background: var(--primary-light); color: #8c3415; white-space: nowrap; letter-spacing: 0.2px; }
 .provider-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .provider-edit-form { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.provider-edit-form input { padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: var(--font-body); font-size: 13px; background: var(--surface); }
-.provider-edit-form input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,69,27,0.1); }
+.provider-edit-form input,
+.provider-edit-form select { padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: var(--font-body); font-size: 13px; background: var(--surface); color: var(--text); }
+.provider-edit-form input:focus,
+.provider-edit-form select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,69,27,0.1); }
 .provider-edit-actions { display: flex; gap: 8px; }
 .provider-add-form { border-top: 1px solid var(--border); padding-top: 20px; }
 .provider-add-form h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 12px; }
 .provider-add-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 @media (max-width: 640px) { .provider-add-fields { grid-template-columns: 1fr; } }
-.provider-add-fields input { padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: var(--font-body); font-size: 13px; background: var(--surface); }
-.provider-add-fields input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,69,27,0.1); }
+.provider-add-fields input,
+.provider-add-fields select { padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: var(--font-body); font-size: 13px; background: var(--surface); color: var(--text); }
+.provider-add-fields input:focus,
+.provider-add-fields select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,69,27,0.1); }
 
 /* ── Health Badge ─────────────────────────────────────── */
 .health-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px; letter-spacing: 0.4px; text-transform: uppercase; }
