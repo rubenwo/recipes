@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchRecipeImage, previewImageByTitle } from '../api/client';
 
-export default function RecipeCard({ recipe: initialRecipe, showLink = false, showIngredients = false, onDelete, fetchImageEndpoint }) {
+export default function RecipeCard({ recipe: initialRecipe, showLink = false, showIngredients = false, showInstructions = false, onDelete, fetchImageEndpoint }) {
   const [recipe, setRecipe] = useState(initialRecipe);
   const [fetchingImage, setFetchingImage] = useState(false);
   const navigate = useNavigate();
@@ -71,6 +71,16 @@ export default function RecipeCard({ recipe: initialRecipe, showLink = false, sh
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {showInstructions && recipe.instructions && recipe.instructions.length > 0 && (
+        <div className="recipe-card-instructions">
+          <h4>Instructions</h4>
+          <ol className="instructions-list">
+            {recipe.instructions.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
         </div>
       )}
       {recipe.tags && recipe.tags.length > 0 && (

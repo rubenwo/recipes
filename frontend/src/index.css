@@ -391,6 +391,23 @@ h3 {
   color: var(--text-secondary);
 }
 .recipe-card-ingredients .ingredients-list li { font-size: 13px; padding: 4px 0; }
+.recipe-card-instructions {
+  background: var(--bg);
+  border-radius: 7px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+}
+.recipe-card-instructions h4 {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.recipe-card-instructions .instructions-list { padding-left: 18px; }
+.recipe-card-instructions .instructions-list li { font-size: 13px; padding: 4px 0; line-height: 1.55; }
 .recipe-card-actions { display: flex; gap: 8px; margin-top: 14px; }
 
 .cuisine-badge {
