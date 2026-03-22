@@ -125,6 +125,7 @@ var allowedSettingKeys = map[string]struct{}{
 	"edamam_app_id":      {},
 	"edamam_app_key":     {},
 	"ollama_host":        {},
+	"ui_language":        {},
 }
 
 func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {

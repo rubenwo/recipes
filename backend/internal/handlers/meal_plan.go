@@ -17,16 +17,18 @@ import (
 	"github.com/rubenwo/mise/internal/integrations/ah"
 	"github.com/rubenwo/mise/internal/llm"
 	"github.com/rubenwo/mise/internal/models"
+	"github.com/rubenwo/mise/internal/translation"
 )
 
 type MealPlanHandler struct {
 	queries      *database.Queries
 	orchestrator *llm.Orchestrator
 	ahClient     *ah.Client
+	translator   *translation.Translator
 }
 
-func NewMealPlanHandler(q *database.Queries, o *llm.Orchestrator, searchTimeout time.Duration) *MealPlanHandler {
-	return &MealPlanHandler{queries: q, orchestrator: o, ahClient: ah.NewClient(searchTimeout)}
+func NewMealPlanHandler(q *database.Queries, o *llm.Orchestrator, searchTimeout time.Duration, t *translation.Translator) *MealPlanHandler {
+	return &MealPlanHandler{queries: q, orchestrator: o, ahClient: ah.NewClient(searchTimeout), translator: t}
 }
 
 func (h *MealPlanHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +269,11 @@ func (h *MealPlanHandler) OrderAH(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			p, err := h.ahClient.SearchProduct(name)
+			query := name
+			if h.translator != nil {
+				query = h.translator.Translate(r.Context(), name, "nl")
+			}
+			p, err := h.ahClient.SearchProduct(query)
 			results[idx] = result{idx: idx, product: p, err: err}
 		}(i, ing.Name)
 	}

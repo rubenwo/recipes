@@ -18,6 +18,7 @@ import (
 	"github.com/rubenwo/mise/internal/models"
 	"github.com/rubenwo/mise/internal/server"
 	"github.com/rubenwo/mise/internal/tools"
+	"github.com/rubenwo/mise/internal/translation"
 )
 
 func main() {
@@ -110,10 +111,12 @@ func main() {
 
 	hub := llm.NewHub()
 
+	translator := translation.New(clientPool, queries)
+
 	imageSearcher := tools.NewImageSearcher(cfg.Search.Timeout, cfg.Server.ImagesDir)
 	recipeHandler := handlers.NewRecipeHandler(queries, imageSearcher, clientPool)
 	generateHandler := handlers.NewGenerateHandler(orchestrator, queries)
-	mealPlanHandler := handlers.NewMealPlanHandler(queries, orchestrator, cfg.Search.Timeout)
+	mealPlanHandler := handlers.NewMealPlanHandler(queries, orchestrator, cfg.Search.Timeout, translator)
 	settingsHandler := handlers.NewSettingsHandler(queries, clientPool, genTimeout)
 	pendingHandler := handlers.NewPendingHandler(queries, imageSearcher, hub)
 

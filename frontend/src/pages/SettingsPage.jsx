@@ -461,6 +461,20 @@ function GeneralSettings() {
           />
           <span className="settings-hint">HTTP timeout for each Ollama request</span>
         </div>
+        <div className="settings-field">
+          <label>UI Language</label>
+          <select
+            value={settings.ui_language || 'en'}
+            onChange={e => handleChange('ui_language', e.target.value)}
+          >
+            <option value="en">English</option>
+            <option value="nl">Dutch (Nederlands)</option>
+          </select>
+          <span className="settings-hint">
+            Display language for the interface. Albert Heijn searches always use Dutch regardless of this setting.
+            To use a dedicated model for translation, tag an Ollama provider with <code>translation</code>.
+          </span>
+        </div>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
