@@ -8,10 +8,13 @@ export default function Layout({ children, pendingCount = 0 }) {
       <header className="header">
         <div className="header-content">
           <Link to="/" className="logo">
-            <svg width="20" height="26" viewBox="0 0 20 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M10 1 L14.5 17 L5.5 17 Z" fill="#b5451b"/>
-              <rect x="4.5" y="17" width="11" height="2.5" rx="1" fill="rgba(255,252,248,0.38)"/>
-              <rect x="5.5" y="19.5" width="9" height="6" rx="3.5" fill="rgba(255,252,248,0.82)"/>
+            <svg width="28" height="22" viewBox="0 0 28 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="10" cy="11" r="9" fill="#b5451b"/>
+              <circle cx="10" cy="11" r="9" stroke="rgba(255,252,248,0.5)" strokeWidth="1.5"/>
+              <circle cx="7.5" cy="8.5" r="2.5" fill="rgba(255,252,248,0.08)"/>
+              <path d="M19 9.5 L26.5 7.5 Q27.5 11 26.5 14.5 L19 12.5 Z" fill="rgba(255,252,248,0.85)" stroke="rgba(255,252,248,0.25)" strokeWidth="0.5"/>
+              <circle cx="21" cy="11" r="0.75" fill="#1c1510" opacity="0.4"/>
+              <circle cx="23.5" cy="11" r="0.75" fill="#1c1510" opacity="0.4"/>
             </svg>
             Mise
           </Link>
