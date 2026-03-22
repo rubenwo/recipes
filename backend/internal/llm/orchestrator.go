@@ -57,10 +57,6 @@ func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events c
 
 func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, events chan<- SSEEvent, tag string) (*models.Recipe, []Message, error) {
 	client := o.pool.AcquireWithTag(tag)
-	if client == nil && tag != "" {
-		// Fall back to any healthy client if no tagged provider is available.
-		client = o.pool.Acquire()
-	}
 	if client == nil {
 		return nil, nil, fmt.Errorf("no Ollama providers available")
 	}
