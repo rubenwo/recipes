@@ -82,9 +82,12 @@ func (q *Queries) ApprovePendingRecipe(ctx context.Context, pendingID int) (*mod
 	var r models.Recipe
 	var ingredientsJSON, instructionsJSON []byte
 	err = tx.QueryRow(ctx, `
-		SELECT id, title, description, cuisine_type, prep_time_minutes, cook_time_minutes,
-			servings, difficulty, ingredients, instructions, dietary_restrictions, tags,
-			generated_by_model, COALESCE(image_url, '')
+		SELECT id, title, COALESCE(description, ''), COALESCE(cuisine_type, ''),
+			COALESCE(prep_time_minutes, 0), COALESCE(cook_time_minutes, 0),
+			COALESCE(servings, 4), COALESCE(difficulty, 'medium'),
+			ingredients, instructions,
+			COALESCE(dietary_restrictions, '{}'), COALESCE(tags, '{}'),
+			COALESCE(generated_by_model, ''), COALESCE(image_url, '')
 		FROM pending_recipes WHERE id = $1`, pendingID,
 	).Scan(
 		&r.ID, &r.Title, &r.Description, &r.CuisineType, &r.PrepTimeMinutes, &r.CookTimeMinutes,
@@ -103,6 +106,13 @@ func (q *Queries) ApprovePendingRecipe(ctx context.Context, pendingID int) (*mod
 	}
 	if err := json.Unmarshal(instructionsJSON, &r.Instructions); err != nil {
 		return nil, err
+	}
+
+	if r.DietaryRestrictions == nil {
+		r.DietaryRestrictions = []string{}
+	}
+	if r.Tags == nil {
+		r.Tags = []string{}
 	}
 
 	// Insert into recipes table.

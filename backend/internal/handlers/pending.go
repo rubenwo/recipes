@@ -50,6 +50,7 @@ func (h *PendingHandler) Approve(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "pending recipe not found")
 			return
 		}
+		log.Printf("ApprovePendingRecipe %d: %v", id, err)
 		writeError(w, http.StatusInternalServerError, "failed to approve recipe")
 		return
 	}
