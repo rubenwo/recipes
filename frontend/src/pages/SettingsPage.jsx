@@ -15,25 +15,18 @@ export default function SettingsPage() {
   );
 }
 
-const KNOWN_TAGS = ['background', 'review'];
+const KNOWN_TAGS = ['background', 'review', 'translation'];
 
 function TagPicker({ tags = [], onChange }) {
   const [selected, setSelected] = useState('');
-  const [custom, setCustom] = useState('');
 
   const add = () => {
-    const value = selected === '__custom__' ? custom.trim() : selected;
-    if (!value || tags.includes(value)) return;
-    onChange([...tags, value]);
+    if (!selected || tags.includes(selected)) return;
+    onChange([...tags, selected]);
     setSelected('');
-    setCustom('');
   };
 
   const remove = (tag) => onChange(tags.filter(t => t !== tag));
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); add(); }
-  };
 
   const availableKnown = KNOWN_TAGS.filter(t => !tags.includes(t));
 
@@ -54,27 +47,16 @@ function TagPicker({ tags = [], onChange }) {
       <div className="tag-picker-input-row">
         <select
           value={selected}
-          onChange={e => { setSelected(e.target.value); setCustom(''); }}
+          onChange={e => setSelected(e.target.value)}
         >
           <option value="">Add tag…</option>
           {availableKnown.map(t => <option key={t} value={t}>{t}</option>)}
-          <option value="__custom__">Custom…</option>
         </select>
-        {selected === '__custom__' && (
-          <input
-            type="text"
-            value={custom}
-            onChange={e => setCustom(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Tag name"
-            autoFocus
-          />
-        )}
         <button
           type="button"
           className="btn btn-secondary"
           onClick={add}
-          disabled={!selected || (selected === '__custom__' && !custom.trim())}
+          disabled={!selected}
         >
           Add
         </button>
@@ -472,7 +454,7 @@ function GeneralSettings() {
           </select>
           <span className="settings-hint">
             Display language for the interface. Albert Heijn searches always use Dutch regardless of this setting.
-            To use a dedicated model for translation, tag an Ollama provider with <code>translation</code>.
+            To use a dedicated model for translation, tag an Ollama provider with the <code>translation</code> tag.
           </span>
         </div>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
