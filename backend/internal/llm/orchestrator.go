@@ -193,26 +193,6 @@ func (o *Orchestrator) reviewRecipe(ctx context.Context, recipe *models.Recipe, 
 	return reviewMessages
 }
 
-func (o *Orchestrator) NormalizeIngredients(ctx context.Context, ingredientsJSON string) (string, error) {
-	client := o.pool.Acquire()
-	if client == nil {
-		return "", fmt.Errorf("no Ollama providers available")
-	}
-
-	systemMsg, userMsg := BuildIngredientNormalizePrompt(ingredientsJSON)
-	messages := []Message{
-		{Role: "system", Content: systemMsg},
-		{Role: "user", Content: userMsg},
-	}
-
-	resp, err := client.Chat(ctx, messages, nil)
-	if err != nil {
-		return "", fmt.Errorf("chat request failed: %w", err)
-	}
-
-	return resp.Message.Content, nil
-}
-
 func (o *Orchestrator) parseRecipe(content string, client *Client) (*models.Recipe, error) {
 	content = strings.TrimSpace(content)
 

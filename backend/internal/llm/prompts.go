@@ -224,19 +224,3 @@ func BuildReviewPrompt(recipeJSON string) (system string, user string) {
 	return reviewSystemPrompt, fmt.Sprintf("Review this recipe:\n\n%s", recipeJSON)
 }
 
-const ingredientNormalizeSystemPrompt = `You are a kitchen assistant. You receive a JSON array of aggregated ingredients and must consolidate duplicates.
-
-Rules:
-1. Merge ingredients that are the same but named differently (e.g. "butter" and "butter for serving" → "Butter", "cumin" and "cumin for sauce" → "Cumin"). Use a clean, capitalized name.
-2. Convert amounts to consistent units where possible. Prefer grams (g) for solids, milliliters (ml) for liquids. Keep tsp/tbsp only for very small amounts (spices, seasonings). Use kg for amounts over 1000g, liters (l) for amounts over 1000ml.
-3. Sum the amounts of merged ingredients after converting to the same unit.
-4. Combine the "recipes" arrays of merged ingredients (no duplicates).
-5. Round amounts to whole numbers where sensible.
-
-Respond with ONLY the consolidated JSON array. Same structure as input:
-[{"name":"...","amount":...,"unit":"...","recipes":["..."]}]
-Do NOT add commentary.`
-
-func BuildIngredientNormalizePrompt(ingredientsJSON string) (system string, user string) {
-	return ingredientNormalizeSystemPrompt, fmt.Sprintf("Consolidate this ingredient list:\n\n%s", ingredientsJSON)
-}

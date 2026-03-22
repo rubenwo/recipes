@@ -194,37 +194,23 @@ func (h *MealPlanHandler) Ingredients(w http.ResponseWriter, r *http.Request) {
 		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
 	})
 
-	// Post-process through LLM to normalize names and consolidate units, then cache.
-	if h.orchestrator != nil && len(result) > 0 {
-		raw, err := json.Marshal(result)
-		if err == nil {
-			normalized, err := h.orchestrator.NormalizeIngredients(r.Context(), string(raw))
-			if err == nil {
-				if start := strings.Index(normalized, "["); start >= 0 {
-					if end := strings.LastIndex(normalized, "]"); end > start {
-						normalized = normalized[start : end+1]
-					}
-				}
-				var consolidated []AggregatedIngredient
-				if err := json.Unmarshal([]byte(normalized), &consolidated); err == nil && len(consolidated) > 0 {
-					result = consolidated
-					// Cache the result so subsequent calls skip the LLM entirely.
-					if cacheJSON, err := json.Marshal(result); err == nil {
-						_ = h.queries.SetPlanNormalizedIngredients(r.Context(), id, cacheJSON)
-					}
-				}
-			}
-		}
+	// Consolidate duplicate ingredients deterministically (skip for single-recipe plans).
+	if len(plan.Recipes) > 1 {
+		result = consolidateIngredients(result)
+	}
+
+	// Always cache the result so subsequent calls skip re-computation.
+	if cacheJSON, err := json.Marshal(result); err == nil {
+		_ = h.queries.SetPlanNormalizedIngredients(r.Context(), id, cacheJSON)
 	}
 
 	writeJSON(w, http.StatusOK, result)
 }
 
 // normalizeIngredientName strips common trailing modifiers so ingredients like
-// "butter" and "butter, softened" key together before LLM normalization.
+// "butter" and "butter, softened" key together for deduplication.
 func normalizeIngredientName(name string) string {
 	name = strings.ToLower(name)
-	// Strip everything after a comma or "for".
 	if idx := strings.Index(name, ","); idx >= 0 {
 		name = strings.TrimSpace(name[:idx])
 	}
@@ -232,6 +218,111 @@ func normalizeIngredientName(name string) string {
 		name = strings.TrimSuffix(name, suffix)
 	}
 	return strings.TrimSpace(name)
+}
+
+// unitToBase converts an amount+unit to a canonical base unit for aggregation.
+// Base units: "g" for weight, "ml" for volume. Other units are returned as-is.
+func unitToBase(amount float64, unit string) (float64, string) {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "kg":
+		return amount * 1000, "g"
+	case "oz":
+		return amount * 28.35, "g"
+	case "lb", "lbs":
+		return amount * 453.592, "g"
+	case "l", "liter", "litre", "liters", "litres":
+		return amount * 1000, "ml"
+	case "tsp", "teaspoon", "teaspoons":
+		return amount * 4.929, "ml"
+	case "tbsp", "tablespoon", "tablespoons":
+		return amount * 14.787, "ml"
+	case "cup", "cups":
+		return amount * 240, "ml"
+	default:
+		return amount, strings.ToLower(strings.TrimSpace(unit))
+	}
+}
+
+// baseToDisplay converts a base-unit amount to a human-friendly unit.
+func baseToDisplay(amount float64, baseUnit string) (float64, string) {
+	switch baseUnit {
+	case "g":
+		if amount >= 1000 {
+			return amount / 1000, "kg"
+		}
+		return amount, "g"
+	case "ml":
+		if amount >= 1000 {
+			return amount / 1000, "l"
+		}
+		return amount, "ml"
+	default:
+		return amount, baseUnit
+	}
+}
+
+// roundAmount rounds to a whole number for amounts >= 10, otherwise 2 decimal places.
+func roundAmount(amount float64) float64 {
+	if amount >= 10 {
+		return math.Round(amount)
+	}
+	return math.Round(amount*100) / 100
+}
+
+// consolidateIngredients merges duplicate ingredients by normalizing names and
+// converting to base units before summing. Intended for plans with >1 recipe.
+func consolidateIngredients(ingredients []AggregatedIngredient) []AggregatedIngredient {
+	type key struct{ name, unit string }
+	type entry struct {
+		displayName string
+		amount      float64
+		baseUnit    string
+		recipes     map[string]bool
+	}
+
+	agg := map[key]*entry{}
+	for _, ing := range ingredients {
+		normName := normalizeIngredientName(ing.Name)
+		baseAmount, baseUnit := unitToBase(ing.Amount, ing.Unit)
+		k := key{normName, baseUnit}
+		if agg[k] == nil {
+			agg[k] = &entry{
+				displayName: normName,
+				baseUnit:    baseUnit,
+				recipes:     map[string]bool{},
+			}
+		}
+		agg[k].amount += baseAmount
+		for _, r := range ing.Recipes {
+			agg[k].recipes[r] = true
+		}
+	}
+
+	result := make([]AggregatedIngredient, 0, len(agg))
+	for _, e := range agg {
+		displayAmount, displayUnit := baseToDisplay(e.amount, e.baseUnit)
+		displayAmount = roundAmount(displayAmount)
+		// Capitalize first letter for display.
+		displayName := e.displayName
+		if len(displayName) > 0 {
+			displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+		}
+		recipes := make([]string, 0, len(e.recipes))
+		for r := range e.recipes {
+			recipes = append(recipes, r)
+		}
+		sort.Strings(recipes)
+		result = append(result, AggregatedIngredient{
+			Name:    displayName,
+			Amount:  displayAmount,
+			Unit:    displayUnit,
+			Recipes: recipes,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
+	})
+	return result
 }
 
 func (h *MealPlanHandler) Delete(w http.ResponseWriter, r *http.Request) {
