@@ -36,16 +36,13 @@ type tokenResponse struct {
 
 type searchResponse struct {
 	Products []struct {
-		WebshopID string `json:"webshopId"`
-		Title     string `json:"title"`
-		Price     struct {
-			Now      float64 `json:"now"`
-			UnitSize string  `json:"unitSize"`
-		} `json:"price"`
-		Images []struct {
+		WebshopID    int    `json:"webshopId"`
+		Title        string `json:"title"`
+		CurrentPrice float64 `json:"currentPrice"`
+		SalesUnitSize string `json:"salesUnitSize"`
+		Images       []struct {
 			URL string `json:"url"`
 		} `json:"images"`
-		Link string `json:"link"`
 	} `json:"products"`
 }
 
@@ -172,11 +169,11 @@ func (c *Client) SearchProduct(query string) (*Product, error) {
 		imageURL = p.Images[0].URL
 	}
 	return &Product{
-		ID:       p.WebshopID,
+		ID:       fmt.Sprintf("%d", p.WebshopID),
 		Title:    p.Title,
-		Price:    p.Price.Now,
-		UnitSize: p.Price.UnitSize,
+		Price:    p.CurrentPrice,
+		UnitSize: p.SalesUnitSize,
 		ImageURL: imageURL,
-		URL:      "https://www.ah.nl" + p.Link,
+		URL:      fmt.Sprintf("https://www.ah.nl/producten/product/wi%d", p.WebshopID),
 	}, nil
 }
