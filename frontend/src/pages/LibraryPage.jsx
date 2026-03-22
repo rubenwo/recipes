@@ -208,7 +208,7 @@ export default function LibraryPage() {
         <p>Loading...</p>
       ) : searchMode === 'ai' ? (
         isSearching ? (
-          aiLoading ? null : <RecipeList recipes={aiResults?.recipes || []} onDelete={remove} />
+          aiLoading ? null : <RecipeList recipes={aiResults?.recipes || []} onDelete={remove} searchQuery={query} />
         ) : (
           <div className="cuisine-groups">
             {cuisineGroups.map(([cuisine, groupRecipes]) => (
@@ -224,7 +224,7 @@ export default function LibraryPage() {
           </div>
         )
       ) : isSearching ? (
-        <RecipeList recipes={fuzzyFiltered} onDelete={remove} />
+        <RecipeList recipes={fuzzyFiltered} onDelete={remove} searchQuery={query} />
       ) : (
         <div className="cuisine-groups">
           {cuisineGroups.map(([cuisine, groupRecipes]) => (

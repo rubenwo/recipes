@@ -22,6 +22,7 @@ export default function Layout({ children, pendingCount = 0 }) {
             </Link>
             <Link to="/generate" className={location.pathname === '/generate' ? 'active' : ''}>Generate</Link>
             <Link to="/import" className={location.pathname === '/import' ? 'active' : ''}>Import</Link>
+            <Link to="/recipe/new" className={location.pathname === '/recipe/new' ? 'active' : ''}>New</Link>
             <Link to="/plans" className={location.pathname.startsWith('/plans') ? 'active' : ''}>Plans</Link>
             <Link to="/library" className={location.pathname === '/library' ? 'active' : ''}>Library</Link>
             <Link to="/settings" className={location.pathname === '/settings' ? 'active' : ''}>Settings</Link>

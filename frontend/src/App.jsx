@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import CreateRecipePage from './pages/CreateRecipePage';
 import GeneratePage from './pages/GeneratePage';
 import ImportPage from './pages/ImportPage';
 import LibraryPage from './pages/LibraryPage';
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/plans" element={<PlanPage />} />
           <Route path="/plans/:id" element={<PlanPage />} />
+          <Route path="/recipe/new" element={<CreateRecipePage />} />
           <Route path="/recipe/:id" element={<RecipePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

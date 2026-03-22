@@ -5,7 +5,7 @@ const CUISINES = ['', 'Italian', 'Mexican', 'Chinese', 'Japanese', 'Indian', 'Th
 const DIFFICULTIES = ['', 'easy', 'medium', 'hard'];
 const DIETARY = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'keto', 'paleo'];
 
-export default function GenerateForm({ onGenerate, loading }) {
+export default function GenerateForm({ onGenerate, loading, initialNotes = '' }) {
   const [mode, setMode] = useState('single');
   const [form, setForm] = useState({
     cuisine_type: '',
@@ -13,7 +13,7 @@ export default function GenerateForm({ onGenerate, loading }) {
     max_prep_time: 0,
     difficulty: '',
     servings: 4,
-    additional_notes: '',
+    additional_notes: initialNotes,
     count: 3,
   });
 
@@ -23,6 +23,12 @@ export default function GenerateForm({ onGenerate, loading }) {
       if (s) setForm(prev => ({ ...prev, servings: parseInt(s.value) || 4 }));
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (initialNotes) {
+      setForm(prev => ({ ...prev, additional_notes: initialNotes }));
+    }
+  }, [initialNotes]);
 
   const toggleDietary = (item) => {
     setForm(prev => ({

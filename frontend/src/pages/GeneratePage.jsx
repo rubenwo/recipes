@@ -1,9 +1,12 @@
+import { useSearchParams } from 'react-router-dom';
 import GenerateForm from '../components/GenerateForm';
 import GenerationProgress from '../components/GenerationProgress';
 import ReviewPanel from '../components/ReviewPanel';
 import { useGeneration } from '../hooks/useGeneration';
 
 export default function GeneratePage() {
+  const [searchParams] = useSearchParams();
+  const initialNotes = searchParams.get('notes') || '';
   const { events, recipes, loading, error, generate, reset, removeRecipe } = useGeneration();
 
   const handleGenerate = (endpoint, body) => {
@@ -22,7 +25,7 @@ export default function GeneratePage() {
       <h2>Generate Recipes</h2>
       <div className="generate-layout">
         <div className="generate-left">
-          <GenerateForm onGenerate={handleGenerate} loading={loading} />
+          <GenerateForm onGenerate={handleGenerate} loading={loading} initialNotes={initialNotes} />
         </div>
         <div className="generate-right">
           {error && <div className="error-message">{error}</div>}
