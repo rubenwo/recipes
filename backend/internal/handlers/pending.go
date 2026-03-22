@@ -57,6 +57,31 @@ func (h *PendingHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, recipe)
 }
 
+func (h *PendingHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	var req UpdateContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.queries.UpdatePendingRecipeContent(r.Context(), id, req.Ingredients, req.Instructions); err != nil {
+		if err == pgx.ErrNoRows {
+			writeError(w, http.StatusNotFound, "pending recipe not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to update pending recipe")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *PendingHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

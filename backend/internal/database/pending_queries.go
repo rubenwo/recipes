@@ -149,6 +149,28 @@ func (q *Queries) SetPendingRecipeImage(ctx context.Context, id int, imageURL st
 	return err
 }
 
+func (q *Queries) UpdatePendingRecipeContent(ctx context.Context, id int, ingredients []models.Ingredient, instructions []string) error {
+	ingredientsJSON, err := json.Marshal(ingredients)
+	if err != nil {
+		return fmt.Errorf("marshaling ingredients: %w", err)
+	}
+	instructionsJSON, err := json.Marshal(instructions)
+	if err != nil {
+		return fmt.Errorf("marshaling instructions: %w", err)
+	}
+	tag, err := q.pool.Exec(ctx,
+		"UPDATE pending_recipes SET ingredients = $2, instructions = $3 WHERE id = $1",
+		id, ingredientsJSON, instructionsJSON,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 // DeleteExpiredPendingRecipes removes pending recipes older than the given age.
 func (q *Queries) DeleteExpiredPendingRecipes(ctx context.Context, maxAge time.Duration) (int64, error) {
 	tag, err := q.pool.Exec(ctx,

@@ -926,3 +926,22 @@ a, button, input, select, textarea { transition: all 0.15s ease; }
 .tag-picker-input-row { display: flex; gap: 6px; align-items: center; }
 .tag-picker-input-row select,
 .tag-picker-input-row input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; font-family: var(--font-body); font-size: 12px; background: var(--surface); }
+
+/* ── Recipe Edit Form ─────────────────────────────────── */
+.recipe-edit-form { padding: 20px 0; }
+.recipe-edit-section { margin-bottom: 24px; }
+.recipe-edit-section h4 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.recipe-edit-list { list-style: none; padding: 0; margin: 0 0 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.recipe-edit-ingredient-row { display: flex; align-items: center; gap: 6px; }
+.edit-input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-family: var(--font-body); font-size: 13px; background: var(--surface); color: var(--text); transition: border-color 0.15s; }
+.edit-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(181,69,27,0.1); }
+.edit-input-amount { width: 64px; flex-shrink: 0; }
+.edit-input-unit { width: 72px; flex-shrink: 0; }
+.edit-input-name { flex: 2; min-width: 0; }
+.edit-input-notes { flex: 1; min-width: 0; }
+.recipe-edit-instructions-list { counter-reset: step; }
+.recipe-edit-instruction-row { display: flex; align-items: flex-start; gap: 6px; }
+.edit-instruction-textarea { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-family: var(--font-body); font-size: 13px; background: var(--surface); color: var(--text); resize: vertical; line-height: 1.5; transition: border-color 0.15s; }
+.edit-instruction-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(181,69,27,0.1); }
+.recipe-edit-actions { display: flex; gap: 10px; margin-top: 8px; }
+.recipe-edit-trigger { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }

@@ -1,13 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { listPendingRecipes, approvePendingRecipe, rejectPendingRecipe, getSettings } from '../api/client';
+import { listPendingRecipes, approvePendingRecipe, rejectPendingRecipe, getSettings, updatePendingRecipeContent } from '../api/client';
 import RecipeCard from '../components/RecipeCard';
+import RecipeEditForm from '../components/RecipeEditForm';
 
 export default function PendingPage({ onCountChange }) {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bgEnabled, setBgEnabled] = useState(false);
   const [acting, setActing] = useState({});
-  const [generatingMsg, setGeneratingMsg] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [revisions, setRevisions] = useState({});
+  const generatingMsg = useRef(null);
+  const [generatingMsgState, setGeneratingMsgState] = useState(null);
   const generatingTimerRef = useRef(null);
 
   useEffect(() => {
@@ -38,13 +43,13 @@ export default function PendingPage({ onCountChange }) {
           onCountChange?.(next.length);
           return next;
         });
-        setGeneratingMsg(null);
+        setGeneratingMsgState(null);
         clearTimeout(generatingTimerRef.current);
       } else if (ev.type === 'status' || ev.type === 'tool') {
-        setGeneratingMsg(ev.message || 'Generating recipe…');
+        setGeneratingMsgState(ev.message || 'Generating recipe…');
         clearTimeout(generatingTimerRef.current);
         // Clear the banner if nothing new arrives within 60 seconds.
-        generatingTimerRef.current = setTimeout(() => setGeneratingMsg(null), 60_000);
+        generatingTimerRef.current = setTimeout(() => setGeneratingMsgState(null), 60_000);
       }
     };
 
@@ -86,15 +91,29 @@ export default function PendingPage({ onCountChange }) {
     }
   };
 
+  const handleEditSave = async (id, { ingredients, instructions }) => {
+    setEditSaving(true);
+    try {
+      await updatePendingRecipeContent(id, ingredients, instructions);
+      setRecipes(rs => rs.map(r => r.id === id ? { ...r, ingredients, instructions } : r));
+      setRevisions(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+      setEditingId(null);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   if (loading) return <p className="empty-state">Loading...</p>;
 
   return (
     <div className="pending-page">
       <h2>Pending Recipes</h2>
-      {generatingMsg && (
+      {generatingMsgState && (
         <div className="pending-generating-banner">
           <span className="pending-generating-spinner" />
-          {generatingMsg}
+          {generatingMsgState}
         </div>
       )}
       <p className="pending-page-hint">
@@ -112,26 +131,49 @@ export default function PendingPage({ onCountChange }) {
         <div className="pending-list">
           {recipes.map(recipe => (
             <div key={recipe.id} className="pending-item">
-              <RecipeCard recipe={recipe} showIngredients fetchImageEndpoint={`/pending/${recipe.id}/fetch-image`} />
-              <p className="pending-item-date">
-                Generated {new Date(recipe.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-              </p>
-              <div className="pending-item-actions">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => handleApprove(recipe.id)}
-                  disabled={!!acting[recipe.id]}
-                >
-                  {acting[recipe.id] === 'approving' ? 'Saving…' : 'Save to library'}
-                </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={() => handleReject(recipe.id)}
-                  disabled={!!acting[recipe.id]}
-                >
-                  {acting[recipe.id] === 'rejecting' ? 'Rejecting…' : 'Reject'}
-                </button>
-              </div>
+              {editingId === recipe.id ? (
+                <RecipeEditForm
+                  recipe={recipe}
+                  onSave={({ ingredients, instructions }) => handleEditSave(recipe.id, { ingredients, instructions })}
+                  onCancel={() => setEditingId(null)}
+                  saving={editSaving}
+                />
+              ) : (
+                <>
+                  <RecipeCard
+                    key={revisions[recipe.id] || 0}
+                    recipe={recipe}
+                    showIngredients
+                    fetchImageEndpoint={`/pending/${recipe.id}/fetch-image`}
+                  />
+                  <p className="pending-item-date">
+                    Generated {new Date(recipe.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                  </p>
+                  <div className="pending-item-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleApprove(recipe.id)}
+                      disabled={!!acting[recipe.id]}
+                    >
+                      {acting[recipe.id] === 'approving' ? 'Saving…' : 'Save to library'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setEditingId(recipe.id)}
+                      disabled={!!acting[recipe.id]}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => handleReject(recipe.id)}
+                      disabled={!!acting[recipe.id]}
+                    >
+                      {acting[recipe.id] === 'rejecting' ? 'Rejecting…' : 'Reject'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>

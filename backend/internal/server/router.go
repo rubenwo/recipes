@@ -28,6 +28,7 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Post("/recipes/ai-search", h.AISearch)
 		r.Get("/recipes/suggestions", h.Suggestions)
 		r.Get("/recipes/{id}", h.Get)
+		r.Patch("/recipes/{id}", h.Update)
 		r.Delete("/recipes/{id}", h.Delete)
 		r.Post("/recipes/{id}/fetch-image", h.FetchImage)
 
@@ -51,6 +52,7 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Get("/pending", p.List)
 		r.Get("/pending/events", p.Stream)
 		r.Post("/pending/{id}/approve", p.Approve)
+		r.Patch("/pending/{id}", p.Update)
 		r.Post("/pending/{id}/fetch-image", p.FetchImage)
 		r.Delete("/pending/{id}", p.Reject)
 

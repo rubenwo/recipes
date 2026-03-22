@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { fetchRecipeImage } from '../api/client';
+import { fetchRecipeImage, updateRecipeContent } from '../api/client';
+import RecipeEditForm from './RecipeEditForm';
 
 export default function RecipeDetail({ recipe: initialRecipe }) {
   const [recipe, setRecipe] = useState(initialRecipe);
   const [fetchingImage, setFetchingImage] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   const handleRefreshImage = async () => {
     setRecipe(r => ({ ...r, image_url: '' }));
@@ -15,6 +18,19 @@ export default function RecipeDetail({ recipe: initialRecipe }) {
       console.error('Image fetch failed:', err);
     } finally {
       setFetchingImage(false);
+    }
+  };
+
+  const handleEditSave = async ({ ingredients, instructions }) => {
+    setEditSaving(true);
+    try {
+      await updateRecipeContent(recipe.id, ingredients, instructions);
+      setRecipe(r => ({ ...r, ingredients, instructions }));
+      setEditing(false);
+    } catch (err) {
+      alert('Failed to save: ' + err.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -49,28 +65,51 @@ export default function RecipeDetail({ recipe: initialRecipe }) {
         </div>
       )}
 
-      <div className="recipe-body">
-        <section className="recipe-section recipe-ingredients">
-          <h3>Ingredients</h3>
-          <ul className="ingredients-list">
-            {recipe.ingredients && recipe.ingredients.map((ing, i) => (
-              <li key={i}>
-                <strong>{ing.amount} {ing.unit}</strong> {ing.name}
-                {ing.notes && <span className="ingredient-notes"> ({ing.notes})</span>}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {editing ? (
+        <RecipeEditForm
+          recipe={recipe}
+          onSave={handleEditSave}
+          onCancel={() => setEditing(false)}
+          saving={editSaving}
+        />
+      ) : (
+        <>
+          <div className="recipe-body">
+            <section className="recipe-section recipe-ingredients">
+              <div className="recipe-section-header">
+                <h3>Ingredients</h3>
+              </div>
+              <ul className="ingredients-list">
+                {recipe.ingredients && recipe.ingredients.map((ing, i) => (
+                  <li key={i}>
+                    <strong>{ing.amount} {ing.unit}</strong> {ing.name}
+                    {ing.notes && <span className="ingredient-notes"> ({ing.notes})</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-        <section className="recipe-section recipe-instructions">
-          <h3>Instructions</h3>
-          <ol className="instructions-list">
-            {recipe.instructions && recipe.instructions.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
-        </section>
-      </div>
+            <section className="recipe-section recipe-instructions">
+              <div className="recipe-section-header">
+                <h3>Instructions</h3>
+              </div>
+              <ol className="instructions-list">
+                {recipe.instructions && recipe.instructions.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          {recipe.id && (
+            <div className="recipe-edit-trigger">
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>
+                Edit ingredients &amp; instructions
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {recipe.tags && recipe.tags.length > 0 && (
         <div className="recipe-tags">

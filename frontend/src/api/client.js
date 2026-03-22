@@ -32,6 +32,20 @@ export function deleteRecipe(id) {
   return request(`/recipes/${id}`, { method: 'DELETE' });
 }
 
+export function updateRecipeContent(id, ingredients, instructions) {
+  return request(`/recipes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ingredients, instructions }),
+  });
+}
+
+export function updatePendingRecipeContent(id, ingredients, instructions) {
+  return request(`/pending/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ingredients, instructions }),
+  });
+}
+
 export function getRecipeSuggestions(count = 3) {
   return request(`/recipes/suggestions?count=${count}`);
 }

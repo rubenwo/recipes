@@ -47,6 +47,28 @@ func (q *Queries) SetRecipeImage(ctx context.Context, id int, imageURL string) e
 	return err
 }
 
+func (q *Queries) UpdateRecipeContent(ctx context.Context, id int, ingredients []models.Ingredient, instructions []string) error {
+	ingredientsJSON, err := json.Marshal(ingredients)
+	if err != nil {
+		return fmt.Errorf("marshaling ingredients: %w", err)
+	}
+	instructionsJSON, err := json.Marshal(instructions)
+	if err != nil {
+		return fmt.Errorf("marshaling instructions: %w", err)
+	}
+	tag, err := q.pool.Exec(ctx,
+		"UPDATE recipes SET ingredients = $2, instructions = $3, updated_at = NOW() WHERE id = $1",
+		id, ingredientsJSON, instructionsJSON,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (q *Queries) GetRecipe(ctx context.Context, id int) (*models.Recipe, error) {
 	r := &models.Recipe{}
 	var ingredientsJSON, instructionsJSON []byte

@@ -103,6 +103,36 @@ func (h *RecipeHandler) fetchAndStoreImage(ctx context.Context, id int, title st
 	}
 }
 
+type UpdateContentRequest struct {
+	Ingredients []models.Ingredient `json:"ingredients"`
+	Instructions []string            `json:"instructions"`
+}
+
+func (h *RecipeHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	var req UpdateContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.queries.UpdateRecipeContent(r.Context(), id, req.Ingredients, req.Instructions); err != nil {
+		if err == pgx.ErrNoRows {
+			writeError(w, http.StatusNotFound, "recipe not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to update recipe")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *RecipeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
