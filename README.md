@@ -1,4 +1,4 @@
-# Recipes
+# Mise
 
 AI-powered recipe generation and meal planning. Uses Ollama (local LLM) to generate recipes with web search, database search, and optional Edamam API integration.
 
@@ -12,12 +12,12 @@ cd backend && ./server       # Linux/macOS
 
 ## Docker
 
-The image is automatically built and pushed to [ghcr.io/rubenwo/recipes](https://ghcr.io/rubenwo/recipes) on every push to `master`.
+The image is automatically built and pushed to [ghcr.io/rubenwo/mise](https://ghcr.io/rubenwo/mise) on every push to `master`.
 
 ### Pull the image
 
 ```bash
-docker pull ghcr.io/rubenwo/recipes:latest
+docker pull ghcr.io/rubenwo/mise:latest
 ```
 
 ### Run with Docker
@@ -26,11 +26,11 @@ Create a `config.yaml` based on `backend/config.example.yaml`, then:
 
 ```bash
 docker run -d \
-  --name recipes \
+  --name mise \
   -p 8080:8080 \
   -v /path/to/config.yaml:/app/config.yaml \
   -v /path/to/images:/app/images \
-  ghcr.io/rubenwo/recipes:latest
+  ghcr.io/rubenwo/mise:latest
 ```
 
 **Volume mounts:**
@@ -52,17 +52,17 @@ The steps below use the **Custom App** feature in the TrueNAS web UI.
 
 1. A running PostgreSQL instance accessible from TrueNAS (can be a TrueNAS app or external)
 2. A running Ollama instance accessible from TrueNAS
-3. A directory on TrueNAS for the config file and images (e.g. `/mnt/tank/recipes`)
+3. A directory on TrueNAS for the config file and images (e.g. `/mnt/tank/mise`)
 
 ### Step 1 — Prepare config and storage
 
 SSH into TrueNAS and create the required directories:
 
 ```bash
-mkdir -p /mnt/tank/recipes/images
+mkdir -p /mnt/tank/mise/images
 ```
 
-Create `/mnt/tank/recipes/config.yaml` based on `backend/config.example.yaml`.
+Create `/mnt/tank/mise/config.yaml` based on `backend/config.example.yaml`.
 Update the hosts to point to your actual PostgreSQL and Ollama addresses:
 
 ```yaml
@@ -75,7 +75,7 @@ database:
   port: 5432
   user: postgres
   password: "yourpassword"
-  name: recipes
+  name: mise
   sslmode: disable
 
 ollama:
@@ -91,7 +91,7 @@ search:
 
 ### Step 2 — Make the GHCR package public
 
-Go to **GitHub → Your profile → Packages → recipes → Package settings → Change visibility → Public**.
+Go to **GitHub → Your profile → Packages → mise → Package settings → Change visibility → Public**.
 
 This allows TrueNAS to pull the image without credentials.
 
@@ -103,8 +103,8 @@ This allows TrueNAS to pull the image without credentials.
 
 | Field | Value |
 |---|---|
-| Application Name | `recipes` |
-| Image Repository | `ghcr.io/rubenwo/recipes` |
+| Application Name | `mise` |
+| Image Repository | `ghcr.io/rubenwo/mise` |
 | Image Tag | `latest` |
 | Container Port | `8080` |
 | Node Port | `8080` (or any free port) |
@@ -113,14 +113,14 @@ This allows TrueNAS to pull the image without credentials.
 
 | Host Path | Mount Path |
 |---|---|
-| `/mnt/tank/recipes/config.yaml` | `/app/config.yaml` |
-| `/mnt/tank/recipes/images` | `/app/images` |
+| `/mnt/tank/mise/config.yaml` | `/app/config.yaml` |
+| `/mnt/tank/mise/images` | `/app/images` |
 
 5. Click **Install**
 
 ### Step 4 — Verify
 
-Open `http://<truenas-ip>:8080` in your browser. The recipes app should be running.
+Open `http://<truenas-ip>:8080` in your browser. The Mise app should be running.
 
 ---
 
@@ -128,8 +128,8 @@ Open `http://<truenas-ip>:8080` in your browser. The recipes app should be runni
 
 When a new image is pushed to GHCR, TrueNAS does not auto-update. To update manually:
 
-1. Go to **Apps → Installed Apps → recipes**
+1. Go to **Apps → Installed Apps → mise**
 2. Click the three-dot menu → **Edit**
-3. Change the Image Tag to the specific SHA you want (visible on the [GHCR page](https://github.com/rubenwo/recipes/pkgs/container/recipes))
+3. Change the Image Tag to the specific SHA you want (visible on the [GHCR page](https://github.com/rubenwo/mise/pkgs/container/mise))
 4. Click **Save**
 
