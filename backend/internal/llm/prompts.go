@@ -8,6 +8,30 @@ import (
 	"github.com/rubenwo/recipes/internal/models"
 )
 
+// KnownCuisines is the canonical list of cuisines the app supports.
+// It is used to seed cuisine counts so that cuisines with zero recipes
+// are treated as the most underrepresented when balancing the library.
+var KnownCuisines = []string{
+	"American", "Argentine", "Brazilian", "British", "Caribbean",
+	"Chinese", "Dutch", "Eastern European", "Ethiopian", "Filipino",
+	"French", "German", "Indian", "Italian", "Japanese", "Korean",
+	"Mediterranean", "Mexican", "Middle Eastern", "Moroccan", "Peruvian",
+	"Scandinavian", "Spanish", "Thai", "Turkish", "Vietnamese",
+}
+
+// SeedCuisineCounts returns a copy of counts that includes every KnownCuisine
+// at zero if it was not already present, so balancing logic sees the full list.
+func SeedCuisineCounts(counts map[string]int) map[string]int {
+	seeded := make(map[string]int, len(KnownCuisines))
+	for _, c := range KnownCuisines {
+		seeded[c] = 0
+	}
+	for c, n := range counts {
+		seeded[c] = n
+	}
+	return seeded
+}
+
 const systemPrompt = `You are a creative chef and recipe developer. Generate detailed, practical dinner recipes.
 
 IMPORTANT: You MUST respond with valid JSON matching this exact structure:
@@ -43,8 +67,12 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 	var parts []string
 	parts = append(parts, "Generate a dinner recipe")
 
-	if req.CuisineType != "" {
-		parts = append(parts, fmt.Sprintf("from %s cuisine", req.CuisineType))
+	cuisineType := req.CuisineType
+	if cuisineType == "" {
+		cuisineType = pickLeastRepresentedCuisine(SeedCuisineCounts(cuisineCounts))
+	}
+	if cuisineType != "" {
+		parts = append(parts, fmt.Sprintf("from %s cuisine", cuisineType))
 	}
 	if len(req.DietaryRestrictions) > 0 {
 		parts = append(parts, fmt.Sprintf("that is %s", strings.Join(req.DietaryRestrictions, " and ")))
@@ -56,7 +84,7 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 		parts = append(parts, fmt.Sprintf("at %s difficulty level", req.Difficulty))
 	}
 	if req.Servings > 0 {
-		parts = append(parts, fmt.Sprintf("serving %d people", req.Servings))
+		parts = append(parts, fmt.Sprintf("for exactly %d servings", req.Servings))
 	}
 	if req.AdditionalNotes != "" {
 		parts = append(parts, fmt.Sprintf("with these preferences: %s", req.AdditionalNotes))
@@ -64,10 +92,8 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 
 	prompt := strings.Join(parts, " ") + "."
 
-	if req.CuisineType == "" && len(cuisineCounts) > 0 {
-		if underrep := leastRepresentedCuisines(cuisineCounts, 3); len(underrep) > 0 {
-			prompt += "\n\nChoose one of these underrepresented cuisines to keep the collection balanced: " + strings.Join(underrep, ", ") + "."
-		}
+	if req.Servings > 0 {
+		prompt += fmt.Sprintf(" The `servings` field in your JSON MUST be %d and all ingredient amounts MUST be scaled accordingly.", req.Servings)
 	}
 
 	if len(existingTitles) > 0 {
@@ -77,8 +103,10 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 	return prompt
 }
 
-// leastRepresentedCuisines returns the n cuisine names with the lowest recipe counts.
-func leastRepresentedCuisines(counts map[string]int, n int) []string {
+// pickLeastRepresentedCuisine returns the cuisine with the fewest recipes.
+// Alphabetical order is used as a tiebreaker for stable, deterministic picks.
+// Returns an empty string if counts is empty.
+func pickLeastRepresentedCuisine(counts map[string]int) string {
 	type entry struct {
 		cuisine string
 		count   int
@@ -88,13 +116,15 @@ func leastRepresentedCuisines(counts map[string]int, n int) []string {
 		entries = append(entries, entry{c, cnt})
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].count < entries[j].count
+		if entries[i].count != entries[j].count {
+			return entries[i].count < entries[j].count
+		}
+		return entries[i].cuisine < entries[j].cuisine
 	})
-	result := make([]string, 0, n)
-	for i := 0; i < n && i < len(entries); i++ {
-		result = append(result, entries[i].cuisine)
+	if len(entries) == 0 {
+		return ""
 	}
-	return result
+	return entries[0].cuisine
 }
 
 func BuildRefinePrompt(recipe models.Recipe, feedback string) string {
@@ -210,6 +240,10 @@ func BuildBackgroundGeneratePrompt(targetCuisine string, existingTitles []string
 
 	if total > 1 {
 		prompt += fmt.Sprintf("\n\n(Recipe %d of %d in this background batch — make it unique from others in this batch.)", index, total)
+	}
+
+	if len(existingTitles) > 0 {
+		prompt += "\n\nDo NOT generate a recipe with a title that already exists in the collection: " + strings.Join(existingTitles, ", ") + "."
 	}
 
 	return prompt

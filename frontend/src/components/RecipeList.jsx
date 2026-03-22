@@ -7,9 +7,10 @@ export default function RecipeList({ recipes, onDelete, searchQuery = '' }) {
       ? `/generate?notes=${encodeURIComponent(searchQuery.trim())}`
       : '/generate';
     return (
-      <p className="empty-state">
-        No recipes found. <Link to={generateHref}>Generate some!</Link>
-      </p>
+      <div className="empty-state">
+        <p>No recipes found.</p>
+        <Link to={generateHref} className="btn btn-primary">Generate some!</Link>
+      </div>
     );
   }
 

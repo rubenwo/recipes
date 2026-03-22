@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSettings } from '../api/client';
 
-const CUISINES = ['', 'Italian', 'Mexican', 'Chinese', 'Japanese', 'Indian', 'Thai', 'French', 'Mediterranean', 'American', 'Korean'];
+const CUISINES = ['', 'American', 'Argentine', 'Brazilian', 'British', 'Caribbean', 'Chinese', 'Dutch', 'Eastern European', 'Ethiopian', 'Filipino', 'French', 'German', 'Indian', 'Italian', 'Japanese', 'Korean', 'Mediterranean', 'Mexican', 'Middle Eastern', 'Moroccan', 'Peruvian', 'Scandinavian', 'Spanish', 'Thai', 'Turkish', 'Vietnamese'];
 const DIFFICULTIES = ['', 'easy', 'medium', 'hard'];
 const DIETARY = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'keto', 'paleo'];
 

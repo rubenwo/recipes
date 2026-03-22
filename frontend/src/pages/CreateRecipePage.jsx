@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { saveRecipe } from '../api/client';
 import RecipeEditForm from '../components/RecipeEditForm';
 
-const CUISINES = ['', 'Italian', 'Mexican', 'Chinese', 'Japanese', 'Indian', 'Thai', 'French', 'Mediterranean', 'American', 'Korean'];
+const CUISINES = ['', 'American', 'Argentine', 'Brazilian', 'British', 'Caribbean', 'Chinese', 'Dutch', 'Eastern European', 'Ethiopian', 'Filipino', 'French', 'German', 'Indian', 'Italian', 'Japanese', 'Korean', 'Mediterranean', 'Mexican', 'Middle Eastern', 'Moroccan', 'Peruvian', 'Scandinavian', 'Spanish', 'Thai', 'Turkish', 'Vietnamese'];
 const DIFFICULTIES = ['', 'easy', 'medium', 'hard'];
 const DIETARY = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'keto', 'paleo'];
 const SUGGESTED_TAGS = ['high-protein', 'low-carb', 'omega-3', 'low-calorie', 'high-fiber', 'meal-prep', 'quick', 'budget-friendly', 'one-pot', 'freezer-friendly'];

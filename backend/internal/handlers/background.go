@@ -157,6 +157,7 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 	if err != nil {
 		log.Printf("Background generation: failed to list cuisine counts: %v", err)
 	}
+	cuisineCounts = llm.SeedCuisineCounts(cuisineCounts)
 
 	for i := 0; i < count; i++ {
 		targetCuisine := leastRepresentedCuisine(cuisineCounts)
