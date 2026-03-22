@@ -87,12 +87,8 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 			if err != nil {
 				return nil, messages, err
 			}
-			reviewClient := o.pool.AcquireWithTag("review")
-			if reviewClient == nil {
-				reviewClient = client
-			}
-			reviewMsgs := o.reviewRecipe(ctx, recipe, reviewClient, events)
-			messages = append(messages, reviewMsgs...)
+			events <- SSEEvent{Type: "status", Message: "Reviewing recipe..."}
+			applyDeterministicReview(recipe)
 			events <- SSEEvent{Type: "recipe", Data: *recipe}
 			return recipe, messages, nil
 		}
@@ -133,65 +129,45 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 	if err != nil {
 		return nil, messages, err
 	}
-	reviewClient := o.pool.AcquireWithTag("review")
-	if reviewClient == nil {
-		reviewClient = client
-	}
-	reviewMsgs := o.reviewRecipe(ctx, recipe, reviewClient, events)
-	messages = append(messages, reviewMsgs...)
+	events <- SSEEvent{Type: "status", Message: "Reviewing recipe..."}
+	applyDeterministicReview(recipe)
 	events <- SSEEvent{Type: "recipe", Data: *recipe}
 	return recipe, messages, nil
 }
 
-// reviewRecipe sends the recipe to the LLM for validation. The LLM returns a
-// partial JSON object containing only fields that need correction. Those
-// corrections are applied in-place on the recipe. If anything goes wrong the
-// original recipe is left unchanged.
-func (o *Orchestrator) reviewRecipe(ctx context.Context, recipe *models.Recipe, client *Client, events chan<- SSEEvent) []Message {
+// GenerateRefine refines an existing recipe based on user feedback.
+// It makes a single LLM call with no tools — the model only needs to apply
+// the requested changes to the recipe it already has in context.
+func (o *Orchestrator) GenerateRefine(ctx context.Context, userPrompt string, events chan<- SSEEvent) (*models.Recipe, []Message, error) {
+	client := o.pool.Acquire()
+	if client == nil {
+		return nil, nil, fmt.Errorf("no Ollama providers available")
+	}
+
+	events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Refining recipe (using %s)...", client.Model())}
+
+	messages := []Message{
+		{Role: "system", Content: SystemPrompt()},
+		{Role: "user", Content: userPrompt},
+	}
+
+	resp, err := client.Chat(ctx, messages, nil)
+	if err != nil {
+		return nil, messages, fmt.Errorf("chat request failed: %w", err)
+	}
+	messages = append(messages, resp.Message)
+
+	recipe, err := o.parseRecipe(resp.Message.Content, client)
+	if err != nil {
+		return nil, messages, err
+	}
+
 	events <- SSEEvent{Type: "status", Message: "Reviewing recipe..."}
-
-	recipeJSON, err := json.Marshal(recipe)
-	if err != nil {
-		log.Printf("Recipe review: failed to serialize recipe: %v", err)
-		return nil
-	}
-
-	systemMsg, userMsg := BuildReviewPrompt(string(recipeJSON))
-	reviewMessages := []Message{
-		{Role: "system", Content: systemMsg},
-		{Role: "user", Content: userMsg},
-	}
-
-	resp, err := client.Chat(ctx, reviewMessages, nil)
-	if err != nil {
-		log.Printf("Recipe review: chat request failed: %v", err)
-		return reviewMessages
-	}
-	reviewMessages = append(reviewMessages, resp.Message)
-
-	content := strings.TrimSpace(resp.Message.Content)
-	if idx := strings.Index(content, "{"); idx >= 0 {
-		if endIdx := strings.LastIndex(content, "}"); endIdx >= idx {
-			content = content[idx : endIdx+1]
-		}
-	}
-
-	// Empty object means no corrections needed.
-	if content == "{}" {
-		return reviewMessages
-	}
-
-	// Unmarshal the patch on top of a copy, then apply only if valid.
-	patched := *recipe
-	if err := json.Unmarshal([]byte(content), &patched); err != nil {
-		log.Printf("Recipe review: failed to parse corrections: %v", err)
-		return reviewMessages
-	}
-
-	*recipe = patched
-	recipe.GeneratedByModel = client.Model()
-	return reviewMessages
+	applyDeterministicReview(recipe)
+	events <- SSEEvent{Type: "recipe", Data: *recipe}
+	return recipe, messages, nil
 }
+
 
 func (o *Orchestrator) parseRecipe(content string, client *Client) (*models.Recipe, error) {
 	content = strings.TrimSpace(content)

@@ -159,7 +159,8 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 	}
 
 	for i := 0; i < count; i++ {
-		prompt := llm.BuildBackgroundGeneratePrompt(titles, cuisineCounts, i+1, count, servings)
+		targetCuisine := leastRepresentedCuisine(cuisineCounts)
+		prompt := llm.BuildBackgroundGeneratePrompt(targetCuisine, titles, i+1, count, servings)
 		recipe := b.generateWithRetry(ctx, prompt, i+1, count, servings, maxRetries, nextRun)
 		if recipe == nil {
 			continue
@@ -191,9 +192,27 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 		} else {
 			b.hub.Publish(llm.SSEEvent{Type: "pending_added", Data: *recipe})
 		}
-		// Update the in-process title list so subsequent recipes in this batch avoid duplicates.
+		// Update in-process tracking so subsequent recipes in this batch get diverse cuisines.
 		titles = append(titles, recipe.Title)
+		if recipe.CuisineType != "" {
+			cuisineCounts[recipe.CuisineType]++
+		}
 	}
+}
+
+// leastRepresentedCuisine returns the cuisine with the fewest recipes, so background
+// generation can be directed to fill gaps in the collection deterministically.
+// Returns an empty string if counts is empty (model chooses freely).
+func leastRepresentedCuisine(counts map[string]int) string {
+	var best string
+	bestCount := -1
+	for cuisine, count := range counts {
+		if bestCount < 0 || count < bestCount {
+			bestCount = count
+			best = cuisine
+		}
+	}
+	return best
 }
 
 func (b *BackgroundGenerator) saveChat(ctx context.Context, prompt string, messages []llm.Message) {

@@ -131,8 +131,36 @@ func (h *GenerateHandler) Refine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
 	prompt := llm.BuildRefinePrompt(req.Recipe, req.Feedback)
-	h.streamGeneration(w, r, prompt)
+	events := make(chan llm.SSEEvent, 10)
+
+	go func() {
+		defer close(events)
+		_, messages, err := h.orchestrator.GenerateRefine(r.Context(), prompt, events)
+		if err != nil {
+			log.Printf("Refine error: %v", err)
+			events <- llm.SSEEvent{Type: "error", Message: err.Error()}
+		}
+		h.saveChat(prompt, messages)
+	}()
+
+	for event := range events {
+		data, _ := json.Marshal(event)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			return
+		}
+		flusher.Flush()
+	}
 }
 
 func (h *GenerateHandler) streamGeneration(w http.ResponseWriter, r *http.Request, prompt string) {
