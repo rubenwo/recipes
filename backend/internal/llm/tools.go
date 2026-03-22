@@ -18,8 +18,13 @@ type ToolParameters struct {
 }
 
 type ToolProperty struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
+	Type        string     `json:"type"`
+	Description string     `json:"description"`
+	Items       *ToolItems `json:"items,omitempty"`
+}
+
+type ToolItems struct {
+	Type string `json:"type"`
 }
 
 var WebSearchTool = Tool{
@@ -52,6 +57,42 @@ var DBSearchTool = Tool{
 				"query": {
 					Type:        "string",
 					Description: "Search query to find existing recipes in the database",
+				},
+			},
+		},
+	},
+}
+
+var LibrarySearchTool = Tool{
+	Type: "function",
+	Function: ToolFunction{
+		Name:        "library_search",
+		Description: "Search your saved recipe library. Searches across recipe title, description, ingredients, and cuisine using keyword wildcards. Use this to find existing recipes.",
+		Parameters: ToolParameters{
+			Type:     "object",
+			Required: []string{},
+			Properties: map[string]ToolProperty{
+				"keywords": {
+					Type:        "string",
+					Description: "Space-separated words to find in recipe title, description, ingredient names, or cuisine. Example: \"garlic chicken lemon\"",
+				},
+				"cuisine_type": {
+					Type:        "string",
+					Description: "Filter by cuisine type. Example: \"Italian\", \"Mexican\", \"Asian\"",
+				},
+				"dietary_restrictions": {
+					Type:        "array",
+					Description: "Dietary filters. Options: vegetarian, vegan, gluten-free, dairy-free, low-carb, keto, high-protein",
+					Items:       &ToolItems{Type: "string"},
+				},
+				"tags": {
+					Type:        "array",
+					Description: "Recipe tags. Options: high-protein, low-carb, omega-3, low-calorie, high-fiber, meal-prep, quick, budget-friendly, one-pot, freezer-friendly",
+					Items:       &ToolItems{Type: "string"},
+				},
+				"max_total_minutes": {
+					Type:        "integer",
+					Description: "Maximum total cook+prep time in minutes. Omit or use 0 for no limit.",
 				},
 			},
 		},

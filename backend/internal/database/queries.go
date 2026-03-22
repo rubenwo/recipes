@@ -298,6 +298,79 @@ func (q *Queries) GetRecipesByIDs(ctx context.Context, ids []int) ([]models.Reci
 	return recipes, err
 }
 
+// LibrarySearchRequest holds parameters for the comprehensive library search.
+type LibrarySearchRequest struct {
+	Keywords            string   // space-separated words; each word must match somewhere
+	CuisineType         string
+	DietaryRestrictions []string
+	Tags                []string
+	MaxTotalMinutes     int
+	Limit               int
+}
+
+// LibrarySearch searches recipes using wildcard matching across title, description,
+// cuisine_type, and ingredient names. Each keyword must match in at least one of those
+// fields. Structured filters (cuisine, dietary restrictions, tags, time) are applied
+// with AND logic.
+func (q *Queries) LibrarySearch(ctx context.Context, req LibrarySearchRequest) ([]models.Recipe, error) {
+	if req.Limit <= 0 {
+		req.Limit = 50
+	}
+
+	conditions := []string{"1=1"}
+	args := []any{}
+	argIdx := 1
+
+	for _, word := range strings.Fields(req.Keywords) {
+		pattern := "%" + strings.ToLower(word) + "%"
+		conditions = append(conditions, fmt.Sprintf(
+			"(LOWER(title) LIKE $%d OR LOWER(description) LIKE $%d OR LOWER(cuisine_type) LIKE $%d"+
+				" OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(ingredients, '[]'::jsonb)) AS ing WHERE LOWER(ing->>'name') LIKE $%d))",
+			argIdx, argIdx, argIdx, argIdx,
+		))
+		args = append(args, pattern)
+		argIdx++
+	}
+
+	if req.CuisineType != "" {
+		conditions = append(conditions, fmt.Sprintf("LOWER(cuisine_type) = LOWER($%d)", argIdx))
+		args = append(args, req.CuisineType)
+		argIdx++
+	}
+	if len(req.DietaryRestrictions) > 0 {
+		conditions = append(conditions, fmt.Sprintf("dietary_restrictions @> $%d", argIdx))
+		args = append(args, req.DietaryRestrictions)
+		argIdx++
+	}
+	if len(req.Tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIdx))
+		args = append(args, req.Tags)
+		argIdx++
+	}
+	if req.MaxTotalMinutes > 0 {
+		conditions = append(conditions, fmt.Sprintf("(prep_time_minutes + cook_time_minutes) <= $%d", argIdx))
+		args = append(args, req.MaxTotalMinutes)
+		argIdx++
+	}
+
+	where := "WHERE " + strings.Join(conditions, " AND ")
+	sqlQuery := fmt.Sprintf(`
+		SELECT id, title, description, cuisine_type, prep_time_minutes, cook_time_minutes,
+			servings, difficulty, ingredients, instructions, dietary_restrictions, tags,
+			generated_by_model, generation_prompt, COALESCE(image_url, ''), created_at, updated_at
+		FROM recipes %s ORDER BY created_at DESC LIMIT $%d`, where, argIdx)
+	args = append(args, req.Limit)
+
+	rows, err := q.pool.Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	recipes, _, err := scanRecipes(rows, 0)
+	return recipes, err
+}
+
 func (q *Queries) CreateGenerationChat(ctx context.Context, prompt, model string, messagesJSON []byte) error {
 	_, err := q.pool.Exec(ctx, `
 		INSERT INTO generation_chats (prompt, model, messages) VALUES ($1, $2, $3)`,

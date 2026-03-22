@@ -171,14 +171,7 @@ func (h *RecipeHandler) Search(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const aiSearchSystemPrompt = `You are a recipe search assistant. Convert the user's natural language query into structured search parameters. Return valid JSON only with these fields:
-- "query": string - key terms for full-text search (dish name, main ingredient, cooking style). Keep short and relevant.
-- "cuisine_type": string - exact cuisine if clearly mentioned (e.g. "Italian", "Mexican", "Asian") or empty string
-- "dietary_restrictions": array of strings - dietary labels if mentioned (e.g. "vegetarian", "vegan", "gluten-free", "dairy-free", "low-carb", "keto", "high-protein") or empty array
-- "tags": array of strings - recipe category tags if mentioned. Known tags: high-protein, low-carb, omega-3, low-calorie, high-fiber, meal-prep, quick, budget-friendly, one-pot, freezer-friendly. Use these exact strings when they match the query, or add others if appropriate. Empty array if none apply.
-- "max_total_minutes": number - max total cook+prep time in minutes if a time limit is mentioned (e.g. 30 for "under 30 minutes"), or 0 for no limit
-
-Return only the JSON object, no explanation.`
+const aiSearchSystemPrompt = `You are a recipe search assistant. Call the library_search tool to find recipes matching the user's request. Extract keywords (ingredients, dish names, cooking style), cuisine, dietary restrictions, tags, and time constraints from the query. Call the tool once.`
 
 func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 	var req models.AISearchRequest
@@ -206,24 +199,33 @@ func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 		{Role: "user", Content: req.Query},
 	}
 
-	resp, err := client.ChatJSON(r.Context(), messages)
+	resp, err := client.Chat(r.Context(), messages, []llm.Tool{llm.LibrarySearchTool})
 	if err != nil {
 		log.Printf("AI search LLM error: %v", err)
 		writeError(w, http.StatusInternalServerError, "AI search failed: "+err.Error())
 		return
 	}
 
-	var parsed struct {
-		Query               string   `json:"query"`
+	// Parse the tool call arguments from the LLM response.
+	var toolArgs struct {
+		Keywords            string   `json:"keywords"`
 		CuisineType         string   `json:"cuisine_type"`
 		DietaryRestrictions []string `json:"dietary_restrictions"`
 		Tags                []string `json:"tags"`
 		MaxTotalMinutes     int      `json:"max_total_minutes"`
 	}
-	if err := json.Unmarshal([]byte(resp.Message.Content), &parsed); err != nil {
-		log.Printf("AI search parse error: %v, content: %s", err, resp.Message.Content)
-		writeError(w, http.StatusInternalServerError, "failed to parse AI response")
-		return
+
+	if len(resp.Message.ToolCalls) > 0 {
+		tc := resp.Message.ToolCalls[0]
+		if err := json.Unmarshal(tc.Function.Arguments, &toolArgs); err != nil {
+			log.Printf("AI search tool arg parse error: %v, args: %s", err, string(tc.Function.Arguments))
+			writeError(w, http.StatusInternalServerError, "failed to parse tool arguments")
+			return
+		}
+	} else {
+		// Fallback: model didn't use the tool — treat entire response as keyword search.
+		log.Printf("AI search: no tool call, falling back to keyword search for %q", req.Query)
+		toolArgs.Keywords = req.Query
 	}
 
 	limit := req.Limit
@@ -231,16 +233,16 @@ func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	searchReq := models.SearchRequest{
-		Query:               parsed.Query,
-		CuisineType:         parsed.CuisineType,
-		DietaryRestrictions: parsed.DietaryRestrictions,
-		Tags:                parsed.Tags,
-		MaxTotalMinutes:     parsed.MaxTotalMinutes,
+	searchReq := database.LibrarySearchRequest{
+		Keywords:            toolArgs.Keywords,
+		CuisineType:         toolArgs.CuisineType,
+		DietaryRestrictions: toolArgs.DietaryRestrictions,
+		Tags:                toolArgs.Tags,
+		MaxTotalMinutes:     toolArgs.MaxTotalMinutes,
 		Limit:               limit,
 	}
 
-	recipes, total, err := h.queries.SearchRecipes(r.Context(), searchReq)
+	recipes, err := h.queries.LibrarySearch(r.Context(), searchReq)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to search recipes")
 		return
@@ -248,8 +250,8 @@ func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"recipes":     recipes,
-		"total":       total,
-		"interpreted": parsed,
+		"total":       len(recipes),
+		"interpreted": toolArgs,
 	})
 }
 
