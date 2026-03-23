@@ -63,6 +63,7 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Post("/pending/{id}/fetch-image", p.FetchImage)
 		r.Delete("/pending/{id}", p.Reject)
 
+		r.Get("/settings/features", s.GetFeatureStatus)
 		r.Get("/settings/models", s.ListModels)
 		r.Get("/settings/providers", s.ListProviders)
 		r.Post("/settings/providers", s.CreateProvider)

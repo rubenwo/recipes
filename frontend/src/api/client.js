@@ -156,6 +156,10 @@ export function getSettings() {
   return request('/settings');
 }
 
+export function getFeatureStatus() {
+  return request('/settings/features');
+}
+
 export function updateSettings(settings) {
   return request('/settings', {
     method: 'PATCH',

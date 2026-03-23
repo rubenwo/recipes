@@ -48,6 +48,28 @@ func (p *ClientPool) Reload(providers []ProviderConfig) {
 	p.buildClients(providers)
 }
 
+// FeatureStatus returns the availability of a feature tag:
+//   "available"    — at least one healthy provider has this tag
+//   "offline"      — a provider has the tag but none are currently healthy
+//   "unconfigured" — no provider has this tag at all
+func (p *ClientPool) FeatureStatus(tag string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	configured := false
+	for _, c := range p.clients {
+		if c.hasTag(tag) {
+			configured = true
+			if c.healthy.Load() {
+				return "available"
+			}
+		}
+	}
+	if configured {
+		return "offline"
+	}
+	return "unconfigured"
+}
+
 // AcquireWithTag returns a healthy client that has the given tag, using
 // round-robin across matching clients. Returns nil if no healthy tagged
 // client exists — callers must handle nil and return an appropriate error.

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { listPendingRecipes, approvePendingRecipe, rejectPendingRecipe, getSettings, updatePendingRecipeContent } from '../api/client';
+import { listPendingRecipes, approvePendingRecipe, rejectPendingRecipe, getSettings, updatePendingRecipeContent, getFeatureStatus } from '../api/client';
 import RecipeCard from '../components/RecipeCard';
 import RecipeEditForm from '../components/RecipeEditForm';
 
@@ -7,6 +7,7 @@ export default function PendingPage({ onCountChange }) {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bgEnabled, setBgEnabled] = useState(false);
+  const [bgGenStatus, setBgGenStatus] = useState(null);
   const [acting, setActing] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -16,13 +17,14 @@ export default function PendingPage({ onCountChange }) {
   const generatingTimerRef = useRef(null);
 
   useEffect(() => {
-    Promise.all([listPendingRecipes(), getSettings()]).then(([data, settings]) => {
+    Promise.all([listPendingRecipes(), getSettings(), getFeatureStatus()]).then(([data, settings, features]) => {
       const list = data || [];
       setRecipes(list);
       onCountChange?.(list.length);
       const map = {};
       (settings || []).forEach(s => { map[s.key] = s.value; });
       setBgEnabled(map.background_generation_enabled === 'true');
+      setBgGenStatus((features || {})['background-generation'] || 'unconfigured');
     }).finally(() => setLoading(false));
   }, []);
 
@@ -114,6 +116,13 @@ export default function PendingPage({ onCountChange }) {
         <div className="pending-generating-banner">
           <span className="pending-generating-spinner" />
           {generatingMsgState}
+        </div>
+      )}
+      {bgEnabled && bgGenStatus && bgGenStatus !== 'available' && (
+        <div className="settings-warning">
+          {bgGenStatus === 'offline'
+            ? 'Background generation is enabled but the provider tagged background-generation is currently offline. No new recipes will be generated until it comes back.'
+            : 'Background generation is enabled but no provider is tagged background-generation. Assign the tag in Settings → LLM Providers.'}
         </div>
       )}
       <p className="pending-page-hint">
