@@ -145,6 +145,34 @@ h3 {
 .btn-link { background: none; border: none; cursor: pointer; color: var(--primary); font-size: 12px; font-weight: 500; text-decoration: underline; padding: 0; transition: color 0.15s; }
 .btn-link:hover { color: var(--primary-hover); }
 
+/* ── Add Recipe Tabs ─────────────────────────────────── */
+.add-recipe-tabs {
+  display: flex;
+  margin-bottom: 28px;
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+.add-recipe-tab {
+  padding: 7px 22px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+}
+.add-recipe-tab.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(181,69,27,0.22);
+}
+
 /* ── Generate Layout ─────────────────────────────────── */
 .generate-page { max-width: 1280px; margin: 0 auto; }
 .generate-layout {

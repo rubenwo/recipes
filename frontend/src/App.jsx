@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import CreateRecipePage from './pages/CreateRecipePage';
-import GeneratePage from './pages/GeneratePage';
-import ImportPage from './pages/ImportPage';
+import AddRecipePage from './pages/AddRecipePage';
 import LibraryPage from './pages/LibraryPage';
 import PlanPage from './pages/PlanPage';
 import PendingPage from './pages/PendingPage';
@@ -27,12 +25,12 @@ export default function App() {
       <Layout pendingCount={pendingCount}>
         <Routes>
           <Route path="/" element={<PendingPage onCountChange={setPendingCount} />} />
-          <Route path="/generate" element={<GeneratePage />} />
-          <Route path="/import" element={<ImportPage />} />
+          <Route path="/generate" element={<Navigate to="/recipe/new?mode=generate" replace />} />
+          <Route path="/import" element={<Navigate to="/recipe/new?mode=import" replace />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/plans" element={<PlanPage />} />
           <Route path="/plans/:id" element={<PlanPage />} />
-          <Route path="/recipe/new" element={<CreateRecipePage />} />
+          <Route path="/recipe/new" element={<AddRecipePage />} />
           <Route path="/recipe/:id" element={<RecipePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
