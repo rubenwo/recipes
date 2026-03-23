@@ -136,5 +136,52 @@ func (h *InventoryHandler) Scan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan failed: "+err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, scans)
+
+	var saved []models.PendingIngredientScan
+	for _, s := range scans {
+		p := models.PendingIngredientScan{
+			Name:      s.Name,
+			Amount:    s.Amount,
+			Unit:      s.Unit,
+			Confident: s.Confident,
+		}
+		if err := h.queries.CreatePendingIngredientScan(r.Context(), &p); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save scan result")
+			return
+		}
+		saved = append(saved, p)
+	}
+	if saved == nil {
+		saved = []models.PendingIngredientScan{}
+	}
+	writeJSON(w, http.StatusOK, saved)
+}
+
+func (h *InventoryHandler) ListScans(w http.ResponseWriter, r *http.Request) {
+	items, err := h.queries.ListPendingIngredientScans(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list pending scans")
+		return
+	}
+	if items == nil {
+		items = []models.PendingIngredientScan{}
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *InventoryHandler) DeleteScan(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.queries.DeletePendingIngredientScan(r.Context(), id); err != nil {
+		if err == pgx.ErrNoRows {
+			writeError(w, http.StatusNotFound, "scan not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to delete scan")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

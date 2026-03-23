@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { listInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from '../api/client';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { listInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,
+         scanIngredient, listPendingScans, deletePendingScan } from '../api/client';
 
 const EMPTY_FORM = { name: '', amount: '', unit: '', notes: '' };
+let nextLocalId = 1; // local-only IDs for in-flight placeholders
 
-function ItemForm({ initial = EMPTY_FORM, onSave, onCancel, saving, title }) {
+function ItemForm({ initial = EMPTY_FORM, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial);
   const set = (f, v) => setForm(prev => ({ ...prev, [f]: v }));
 
@@ -22,7 +24,6 @@ function ItemForm({ initial = EMPTY_FORM, onSave, onCancel, saving, title }) {
 
   return (
     <form className="inventory-item-form" onSubmit={handleSubmit}>
-      {title && <h4 className="inventory-form-title">{title}</h4>}
       <div className="inventory-form-row">
         <div className="form-group" style={{ flex: 2 }}>
           <label>Name *</label>
@@ -84,14 +85,17 @@ function ScanPanel({ onQueued }) {
   );
 }
 
+// Represents one backend-persisted pending scan (has a real DB id).
 function PendingScanItem({ scan, onAdd, onDismiss }) {
-  const [form, setForm] = useState(scan.result || EMPTY_FORM);
+  const initial = {
+    name: scan.name || '',
+    amount: scan.amount > 0 ? String(scan.amount) : '',
+    unit: scan.unit || '',
+    notes: scan.confident ? '' : '⚠ Low confidence — please verify',
+  };
+  const [form, setForm] = useState(initial);
   const set = (f, v) => setForm(prev => ({ ...prev, [f]: v }));
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (scan.result) setForm(scan.result);
-  }, [scan.result]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -112,54 +116,79 @@ function PendingScanItem({ scan, onAdd, onDismiss }) {
   return (
     <li className="pending-scan-item">
       <div className="pending-scan-header">
-        {scan.preview && <img src={scan.preview} alt="" className="pending-scan-thumb" />}
         <div className="pending-scan-status">
-          {scan.status === 'processing' && <><span className="scan-spinner" /><span>Scanning…</span></>}
-          {scan.status === 'done' && <span className="pending-scan-label">{scan.result?.notes?.startsWith('⚠') ? 'Review — low confidence' : 'Detected'}</span>}
-          {scan.status === 'error' && <span className="pending-scan-error">{scan.error}</span>}
+          <span className="pending-scan-label">{!scan.confident ? 'Review — low confidence' : 'Detected'}</span>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => onDismiss(scan.id)}>Dismiss</button>
       </div>
-      {scan.status === 'done' && (
-        <form className="inventory-item-form" onSubmit={handleAdd}>
-          <div className="inventory-form-row">
-            <div className="form-group" style={{ flex: 2 }}>
-              <label>Name *</label>
-              <input className="edit-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. whole milk" />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Amount</label>
-              <input className="edit-input" type="number" min="0" step="any" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0" />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Unit</label>
-              <input className="edit-input" value={form.unit} onChange={e => set('unit', e.target.value)} placeholder="g, ml, pcs…" />
-            </div>
+      <form className="inventory-item-form" onSubmit={handleAdd}>
+        <div className="inventory-form-row">
+          <div className="form-group" style={{ flex: 2 }}>
+            <label>Name *</label>
+            <input className="edit-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. whole milk" />
           </div>
-          <div className="inventory-form-actions">
-            <button className="btn btn-primary" type="submit" disabled={saving || !form.name.trim()}>
-              {saving ? 'Adding…' : 'Add to Inventory'}
-            </button>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>Amount</label>
+            <input className="edit-input" type="number" min="0" step="any" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0" />
           </div>
-        </form>
-      )}
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>Unit</label>
+            <input className="edit-input" value={form.unit} onChange={e => set('unit', e.target.value)} placeholder="g, ml, pcs…" />
+          </div>
+        </div>
+        <div className="inventory-form-actions">
+          <button className="btn btn-primary" type="submit" disabled={saving || !form.name.trim()}>
+            {saving ? 'Adding…' : 'Add to Inventory'}
+          </button>
+        </div>
+      </form>
     </li>
   );
 }
 
-export default function InventoryPage({ pendingScans, onQueued, onDismiss, onPendingAdded }) {
+export default function InventoryPage() {
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('manual'); // 'manual' | 'scan'
+  const [loadingInventory, setLoadingInventory] = useState(true);
+  const [pendingScans, setPendingScans] = useState([]); // backend-persisted
+  const [inFlight, setInFlight] = useState([]); // local placeholders while upload is processing
+  const [mode, setMode] = useState('manual');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  const loadPendingScans = useCallback(() => {
+    listPendingScans()
+      .then(data => setPendingScans(data || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     listInventory()
       .then(data => setItems(data || []))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingInventory(false));
+    loadPendingScans();
   }, []);
+
+  const handleQueued = useCallback((file) => {
+    const localId = nextLocalId++;
+    setInFlight(prev => [...prev, { localId, error: null }]);
+
+    scanIngredient(file)
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || 'Scan failed');
+        }
+        return res.json();
+      })
+      .then(() => {
+        setInFlight(prev => prev.filter(f => f.localId !== localId));
+        loadPendingScans();
+      })
+      .catch((err) => {
+        setInFlight(prev => prev.map(f => f.localId !== localId ? f : { ...f, error: err.message }));
+      });
+  }, [loadPendingScans]);
 
   const handleAdd = async (data) => {
     setSaving(true);
@@ -199,8 +228,16 @@ export default function InventoryPage({ pendingScans, onQueued, onDismiss, onPen
   const handlePendingAdd = async (scanId, data) => {
     const created = await createInventoryItem(data);
     setItems(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-    onPendingAdded(scanId);
+    await deletePendingScan(scanId);
+    setPendingScans(prev => prev.filter(s => s.id !== scanId));
   };
+
+  const handleDismiss = async (scanId) => {
+    await deletePendingScan(scanId);
+    setPendingScans(prev => prev.filter(s => s.id !== scanId));
+  };
+
+  const totalPending = pendingScans.length + inFlight.length;
 
   return (
     <div className="inventory-page">
@@ -213,27 +250,40 @@ export default function InventoryPage({ pendingScans, onQueued, onDismiss, onPen
           </div>
         </div>
 
-        {mode === 'scan' && <ScanPanel onQueued={onQueued} />}
+        {mode === 'scan' && <ScanPanel onQueued={handleQueued} />}
 
         {mode === 'manual' && (
-          <ItemForm
-            initial={EMPTY_FORM}
-            onSave={handleAdd}
-            saving={saving}
-          />
+          <ItemForm initial={EMPTY_FORM} onSave={handleAdd} saving={saving} />
         )}
       </div>
 
-      {pendingScans.length > 0 && (
+      {totalPending > 0 && (
         <div className="inventory-list-section">
-          <h3>Pending Scans <span className="inventory-count">({pendingScans.length})</span></h3>
+          <h3>Pending Scans <span className="inventory-count">({totalPending})</span></h3>
           <ul className="inventory-list">
+            {inFlight.map(f => (
+              <li key={`local-${f.localId}`} className="pending-scan-item">
+                <div className="pending-scan-header">
+                  <div className="pending-scan-status">
+                    {f.error
+                      ? <span className="pending-scan-error">{f.error}</span>
+                      : <><span className="scan-spinner" /><span>Scanning…</span></>}
+                  </div>
+                  {f.error && (
+                    <button className="btn btn-secondary btn-sm"
+                      onClick={() => setInFlight(prev => prev.filter(x => x.localId !== f.localId))}>
+                      Dismiss
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
             {pendingScans.map(scan => (
               <PendingScanItem
                 key={scan.id}
                 scan={scan}
                 onAdd={(data) => handlePendingAdd(scan.id, data)}
-                onDismiss={onDismiss}
+                onDismiss={handleDismiss}
               />
             ))}
           </ul>
@@ -241,8 +291,8 @@ export default function InventoryPage({ pendingScans, onQueued, onDismiss, onPen
       )}
 
       <div className="inventory-list-section">
-        <h3>Your Inventory {!loading && <span className="inventory-count">({items.length})</span>}</h3>
-        {loading ? (
+        <h3>Your Inventory {!loadingInventory && <span className="inventory-count">({items.length})</span>}</h3>
+        {loadingInventory ? (
           <p className="text-secondary">Loading…</p>
         ) : items.length === 0 ? (
           <p className="text-secondary">No ingredients yet. Add some above.</p>

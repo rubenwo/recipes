@@ -488,6 +488,46 @@ func (q *Queries) DeleteInventoryItem(ctx context.Context, id int) error {
 	return nil
 }
 
+func (q *Queries) ListPendingIngredientScans(ctx context.Context) ([]models.PendingIngredientScan, error) {
+	rows, err := q.pool.Query(ctx, `
+		SELECT id, name, amount, unit, confident, created_at
+		FROM pending_ingredient_scans ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.PendingIngredientScan
+	for rows.Next() {
+		var s models.PendingIngredientScan
+		if err := rows.Scan(&s.ID, &s.Name, &s.Amount, &s.Unit, &s.Confident, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, s)
+	}
+	return items, rows.Err()
+}
+
+func (q *Queries) CreatePendingIngredientScan(ctx context.Context, s *models.PendingIngredientScan) error {
+	return q.pool.QueryRow(ctx, `
+		INSERT INTO pending_ingredient_scans (name, amount, unit, confident)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at`,
+		s.Name, s.Amount, s.Unit, s.Confident,
+	).Scan(&s.ID, &s.CreatedAt)
+}
+
+func (q *Queries) DeletePendingIngredientScan(ctx context.Context, id int) error {
+	tag, err := q.pool.Exec(ctx, "DELETE FROM pending_ingredient_scans WHERE id=$1", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func scanRecipes(rows pgx.Rows, total int) ([]models.Recipe, int, error) {
 	var recipes []models.Recipe
 	for rows.Next() {

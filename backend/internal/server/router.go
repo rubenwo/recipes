@@ -76,6 +76,8 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 		r.Get("/inventory", inv.List)
 		r.Post("/inventory", inv.Create)
 		r.Post("/inventory/scan", inv.Scan)
+		r.Get("/inventory/scans", inv.ListScans)
+		r.Delete("/inventory/scans/{id}", inv.DeleteScan)
 		r.Patch("/inventory/{id}", inv.Update)
 		r.Delete("/inventory/{id}", inv.Delete)
 	})

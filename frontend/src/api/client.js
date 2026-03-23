@@ -240,3 +240,11 @@ export function scanIngredient(imageFile) {
   form.append('image', imageFile);
   return fetch(`${API_BASE}/inventory/scan`, { method: 'POST', body: form });
 }
+
+export function listPendingScans() {
+  return request('/inventory/scans');
+}
+
+export function deletePendingScan(id) {
+  return request(`/inventory/scans/${id}`, { method: 'DELETE' });
+}

@@ -225,19 +225,21 @@ func SystemPrompt() string {
 }
 
 func BuildScanIngredientPrompt() string {
-	return `Look at this image and identify all ingredients shown.
+	return `Look at this image and identify the food product(s) shown.
 
-Respond with a JSON array — one object per ingredient:
+Focus on what each PRODUCT is (e.g. "soy sauce", "whole milk", "olive oil", "canned tomatoes") — not the sub-ingredients listed on any nutrition or ingredient label. If a label is visible, use it only to confirm the product name and net weight/volume, not to enumerate what the product is made of.
+
+Respond with a JSON array — one object per distinct product:
 [
-  {"name": "ingredient name in English, lowercase", "amount": 500, "unit": "g", "confident": true}
+  {"name": "product name in English, lowercase", "amount": 500, "unit": "g", "confident": true}
 ]
 
 Rules:
-- Include every distinct ingredient visible in the image
-- name: the most specific ingredient name you can determine (e.g. "whole milk", "extra virgin olive oil")
-- amount: numeric quantity if visible on packaging, otherwise 0
-- unit: the unit for the amount (g, kg, ml, l, piece, etc.), empty string if unknown
-- confident: true if you are reasonably sure about BOTH the name AND the amount (if amount > 0); false if either is uncertain or the image is unclear
+- One entry per distinct product/package visible
+- name: most specific product name you can determine (e.g. "whole milk", "extra virgin olive oil", "dark soy sauce")
+- amount: net weight or volume from the packaging if visible, otherwise 0
+- unit: the unit for the amount (g, kg, ml, l, etc.), empty string if unknown
+- confident: true if you are reasonably sure about BOTH the name AND the amount (if amount > 0); false otherwise
 - Respond ONLY with the JSON array, no other text`
 }
 

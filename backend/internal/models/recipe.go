@@ -92,3 +92,12 @@ type IngredientScan struct {
 	Unit      string  `json:"unit"`
 	Confident bool    `json:"confident"`
 }
+
+type PendingIngredientScan struct {
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Amount    float64   `json:"amount"`
+	Unit      string    `json:"unit"`
+	Confident bool      `json:"confident"`
+	CreatedAt time.Time `json:"created_at"`
+}
