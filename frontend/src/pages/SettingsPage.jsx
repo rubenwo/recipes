@@ -16,7 +16,7 @@ export default function SettingsPage() {
   );
 }
 
-const KNOWN_TAGS = ['background', 'review', 'translation'];
+const KNOWN_TAGS = ['background', 'translation'];
 
 function TagPicker({ tags = [], onChange }) {
   const [selected, setSelected] = useState('');
