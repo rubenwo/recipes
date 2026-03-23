@@ -569,10 +569,13 @@ function GeneralSettings() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  const GENERAL_KEYS = ['suggestion_count', 'default_servings', 'max_tool_iterations', 'generation_timeout', 'ui_language'];
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateSettings(settings);
+      const payload = Object.fromEntries(GENERAL_KEYS.filter(k => k in settings).map(k => [k, settings[k]]));
+      await updateSettings(payload);
     } catch (err) {
       alert('Failed to save settings: ' + err.message);
     } finally {
