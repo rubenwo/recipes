@@ -29,8 +29,8 @@ func NewBackgroundTranslator(q *database.Queries, t *translation.Translator) *Ba
 	return &BackgroundTranslator{queries: q, translator: t, stop: make(chan struct{})}
 }
 
-// Start launches the background translation loop. Schedule and language are
-// read from app_settings on every tick so changes take effect without a restart.
+// Start launches the background translation loop. Schedule is read from
+// app_settings on every tick so changes take effect without a restart.
 func (b *BackgroundTranslator) Start(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)
@@ -63,15 +63,14 @@ func (b *BackgroundTranslator) Start(ctx context.Context) {
 					log.Printf("BackgroundTranslator: failed to persist last run time: %v", err)
 				}
 
-				// Translate to the configured UI language; skip if English (nothing to translate).
-				targetLang, _ := b.queries.GetSetting(ctx, "ui_language")
-				if targetLang == "" || targetLang == "en" {
-					log.Printf("BackgroundTranslator: ui_language is %q, nothing to translate", targetLang)
-					continue
+				// Dutch is always required for AH ordering regardless of ui_language.
+				// Also translate to ui_language if it differs from "nl".
+				uiLang, _ := b.queries.GetSetting(ctx, "ui_language")
+				langs := translationTargets(uiLang)
+				log.Printf("BackgroundTranslator: starting (langs=%v)", langs)
+				for _, lang := range langs {
+					b.runTranslation(ctx, lang)
 				}
-
-				log.Printf("BackgroundTranslator: starting (lang=%s)", targetLang)
-				b.runTranslation(ctx, targetLang)
 
 			case <-b.stop:
 				return
@@ -84,6 +83,17 @@ func (b *BackgroundTranslator) Start(ctx context.Context) {
 
 func (b *BackgroundTranslator) Stop() {
 	close(b.stop)
+}
+
+// translationTargets returns the set of languages to pre-translate.
+// Dutch ("nl") is always included because AH ordering requires it.
+// ui_language is added when it is a non-English language other than "nl".
+func translationTargets(uiLang string) []string {
+	langs := []string{"nl"}
+	if uiLang != "" && uiLang != "en" && uiLang != "nl" {
+		langs = append(langs, uiLang)
+	}
+	return langs
 }
 
 type bgTranslationSettings struct {
@@ -155,12 +165,12 @@ func (b *BackgroundTranslator) RunNow(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
-	targetLang, _ := b.queries.GetSetting(ctx, "ui_language")
-	if targetLang == "" || targetLang == "en" {
-		writeJSON(w, http.StatusOK, map[string]any{"translated": 0, "message": "ui_language is English, nothing to translate"})
-		return
-	}
+	uiLang, _ := b.queries.GetSetting(ctx, "ui_language")
+	langs := translationTargets(uiLang)
 
-	n := b.runTranslation(ctx, targetLang)
-	writeJSON(w, http.StatusOK, map[string]any{"translated": n})
+	total := 0
+	for _, lang := range langs {
+		total += b.runTranslation(ctx, lang)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"translated": total})
 }
