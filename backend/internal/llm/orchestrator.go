@@ -246,9 +246,9 @@ func (o *Orchestrator) ScanIngredient(ctx context.Context, imageB64 string) ([]m
 // but could not be consolidated deterministically (e.g. unknown cross-unit density).
 // Each group becomes exactly one output entry.
 func (o *Orchestrator) DeduplicateIngredients(ctx context.Context, groups [][]models.AggregatedIngredient) ([]models.AggregatedIngredient, error) {
-	client := o.pool.AcquireWithTag("generation")
+	client := o.pool.AcquireWithTag("deduplication")
 	if client == nil {
-		return nil, fmt.Errorf("no provider with tag %q configured or healthy", "generation")
+		return nil, fmt.Errorf("no provider with tag %q configured or healthy", "deduplication")
 	}
 
 	groupsJSON, err := json.Marshal(groups)
