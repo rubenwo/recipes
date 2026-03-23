@@ -265,7 +265,7 @@ func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt stri
 		}()
 
 		// Prefer providers tagged "background" for scheduled tasks (slower/always-on hardware).
-		recipe, messages, err := b.orchestrator.GenerateWithTag(ctx, prompt, events, "background")
+		recipe, messages, err := b.orchestrator.GenerateWithTag(ctx, prompt, events, "background-generation")
 		if err != nil {
 			if strings.Contains(err.Error(), "failed to parse recipe JSON") && attempt < attempts {
 				log.Printf("Background generation: recipe %d/%d attempt %d/%d failed (invalid JSON), retrying: %v", idx, total, attempt, attempts, err)

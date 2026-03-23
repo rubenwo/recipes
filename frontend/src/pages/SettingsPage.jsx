@@ -16,7 +16,7 @@ export default function SettingsPage() {
   );
 }
 
-const KNOWN_TAGS = ['background', 'translation'];
+const KNOWN_TAGS = ['generation', 'background-generation', 'chat', 'search', 'translation'];
 
 function TagPicker({ tags = [], onChange }) {
   const [selected, setSelected] = useState('');
@@ -333,8 +333,8 @@ function BackgroundGenerationSettings() {
     <div className="settings-section">
       <h3>Background Generation</h3>
       <p className="settings-description">
-        Automatically generate recipes on a cron-like schedule. Use the <code>background</code> tag on a provider
-        (e.g. your always-on server) to prefer it for background tasks.
+        Automatically generate recipes on a cron-like schedule. Tag a provider with <code>background-generation</code>
+        (e.g. your always-on server) to dedicate it to this task.
       </p>
       <div className="settings-form">
         <div className="settings-field">

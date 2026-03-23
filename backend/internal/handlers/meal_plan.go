@@ -124,7 +124,7 @@ func (h *MealPlanHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 
-		recipe, _, genErr := h.orchestrator.Generate(r.Context(), prompt, events)
+		recipe, _, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
 		if genErr == nil && recipe != nil {
 			resp.GeneratedRecipe = recipe
 		}

@@ -88,7 +88,7 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 
 		go func(p string) {
 			defer close(events)
-			recipe, messages, err := h.orchestrator.Generate(r.Context(), p, events)
+			recipe, messages, err := h.orchestrator.GenerateWithTag(r.Context(), p, events, "generation")
 			if err != nil {
 				events <- llm.SSEEvent{Type: "error", Message: err.Error()}
 			}
@@ -191,7 +191,7 @@ func (h *GenerateHandler) streamGeneration(w http.ResponseWriter, r *http.Reques
 
 	go func() {
 		defer close(events)
-		_, messages, err := h.orchestrator.Generate(r.Context(), prompt, events)
+		_, messages, err := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
 		if err != nil {
 			log.Printf("Generation error: %v", err)
 			events <- llm.SSEEvent{Type: "error", Message: err.Error()}

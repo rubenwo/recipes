@@ -51,14 +51,10 @@ func (o *Orchestrator) Pool() *ClientPool {
 	return o.pool
 }
 
-func (o *Orchestrator) Generate(ctx context.Context, userPrompt string, events chan<- SSEEvent) (*models.Recipe, []Message, error) {
-	return o.GenerateWithTag(ctx, userPrompt, events, "")
-}
-
 func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, events chan<- SSEEvent, tag string) (*models.Recipe, []Message, error) {
 	client := o.pool.AcquireWithTag(tag)
 	if client == nil {
-		return nil, nil, fmt.Errorf("no Ollama providers available")
+		return nil, nil, fmt.Errorf("no provider with tag %q configured or healthy", tag)
 	}
 
 	events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Starting recipe generation (using %s)...", client.Model())}
@@ -136,9 +132,9 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 // It makes a single LLM call with no tools — the model only needs to apply
 // the requested changes to the recipe it already has in context.
 func (o *Orchestrator) GenerateRefine(ctx context.Context, userPrompt string, events chan<- SSEEvent) (*models.Recipe, []Message, error) {
-	client := o.pool.Acquire()
+	client := o.pool.AcquireWithTag("generation")
 	if client == nil {
-		return nil, nil, fmt.Errorf("no Ollama providers available")
+		return nil, nil, fmt.Errorf("no provider with tag %q configured or healthy", "generation")
 	}
 
 	events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Refining recipe (using %s)...", client.Model())}
@@ -169,9 +165,9 @@ func (o *Orchestrator) GenerateRefine(ctx context.Context, userPrompt string, ev
 // CookingChat handles a single conversational turn for the cooking assistant.
 // It uses the full recipe as system context and has access to web search tools.
 func (o *Orchestrator) CookingChat(ctx context.Context, systemContext string, history []Message, userMessage string) (string, error) {
-	client := o.pool.Acquire()
+	client := o.pool.AcquireWithTag("chat")
 	if client == nil {
-		return "", fmt.Errorf("no Ollama providers available")
+		return "", fmt.Errorf("no provider with tag %q configured or healthy", "chat")
 	}
 
 	messages := make([]Message, 0, 1+len(history)+1)

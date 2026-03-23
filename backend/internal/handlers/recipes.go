@@ -199,9 +199,9 @@ func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := h.llmPool.Acquire()
+	client := h.llmPool.AcquireWithTag("search")
 	if client == nil {
-		writeError(w, http.StatusServiceUnavailable, "no AI provider available")
+		writeError(w, http.StatusServiceUnavailable, `no provider with tag "search" configured or healthy`)
 		return
 	}
 
