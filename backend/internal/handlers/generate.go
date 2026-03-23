@@ -108,12 +108,14 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			events := make(chan llm.SSEEvent, 10)
 
-			// Forward this goroutine's events into the shared fan-in channel.
+			// Forward this goroutine's events into the shared fan-in channel,
+			// tagging each with the slot index so the client can color-code them.
 			var fwdWg sync.WaitGroup
 			fwdWg.Add(1)
 			go func() {
 				defer fwdWg.Done()
 				for e := range events {
+					e.Index = idx
 					allEvents <- e
 				}
 			}()
@@ -123,7 +125,7 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 			fwdWg.Wait() // ensure all events are forwarded before signalling done
 
 			if genErr != nil {
-				allEvents <- llm.SSEEvent{Type: "error", Message: genErr.Error()}
+				allEvents <- llm.SSEEvent{Type: "error", Message: genErr.Error(), Index: idx}
 			}
 			results <- batchResult{prompt, recipe, messages}
 		}(i, p)

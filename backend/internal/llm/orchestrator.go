@@ -20,6 +20,7 @@ type SSEEvent struct {
 	Tool    string `json:"tool,omitempty"`
 	Args    any    `json:"args,omitempty"`
 	Data    any    `json:"data,omitempty"`
+	Index   int    `json:"index,omitempty"` // batch slot (0 = first / single)
 }
 
 type Orchestrator struct {

@@ -343,6 +343,7 @@ h3 {
 .event-tool_call { border-left-color: var(--primary); }
 .event-tool_result { border-left-color: var(--success); }
 .event-status { border-left-color: #d97706; }
+.event-slot-label { font-size: 10px; font-weight: 700; margin-right: 6px; opacity: 0.85; flex-shrink: 0; }
 
 /* ── Review Panel ────────────────────────────────────── */
 .review-panel { margin-top: 0; }
