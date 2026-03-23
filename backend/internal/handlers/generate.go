@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/rubenwo/mise/internal/database"
 	"github.com/rubenwo/mise/internal/llm"
@@ -74,40 +75,79 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Warning: could not fetch cuisine counts: %v", err)
 	}
 
+	// Pre-compute a distinct cuisine for each recipe slot so that concurrent
+	// goroutines don't all pick the same least-represented cuisine.
+	tempCounts := llm.SeedCuisineCounts(cuisineCounts)
+	prompts := make([]string, req.Count)
+	for i := 0; i < req.Count; i++ {
+		slotReq := req.GenerateRequest
+		if slotReq.CuisineType == "" {
+			slotReq.CuisineType = llm.PickLeastRepresentedCuisine(tempCounts)
+			if slotReq.CuisineType != "" {
+				tempCounts[slotReq.CuisineType]++
+			}
+		}
+		prompts[i] = llm.BuildGeneratePrompt(slotReq, titles, nil)
+		prompts[i] += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch)", i+1, req.Count)
+	}
+
 	type batchResult struct {
+		prompt   string
 		recipe   *models.Recipe
 		messages []llm.Message
 	}
 
+	// Fan-in channel: all goroutines forward their events here.
+	allEvents := make(chan llm.SSEEvent, req.Count*10)
+	results := make(chan batchResult, req.Count)
+
+	var wg sync.WaitGroup
+	for i, p := range prompts {
+		wg.Add(1)
+		go func(idx int, prompt string) {
+			defer wg.Done()
+			events := make(chan llm.SSEEvent, 10)
+
+			// Forward this goroutine's events into the shared fan-in channel.
+			var fwdWg sync.WaitGroup
+			fwdWg.Add(1)
+			go func() {
+				defer fwdWg.Done()
+				for e := range events {
+					allEvents <- e
+				}
+			}()
+
+			recipe, messages, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
+			close(events)
+			fwdWg.Wait() // ensure all events are forwarded before signalling done
+
+			if genErr != nil {
+				allEvents <- llm.SSEEvent{Type: "error", Message: genErr.Error()}
+			}
+			results <- batchResult{prompt, recipe, messages}
+		}(i, p)
+	}
+
+	// Close allEvents once every goroutine is done.
+	go func() {
+		wg.Wait()
+		close(allEvents)
+	}()
+
+	// Stream all events to the client as they arrive.
+	for event := range allEvents {
+		data, _ := json.Marshal(event)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			return
+		}
+		flusher.Flush()
+	}
+
+	// All goroutines finished; drain results and persist chats.
 	for i := 0; i < req.Count; i++ {
-		prompt := llm.BuildGeneratePrompt(req.GenerateRequest, titles, cuisineCounts)
-		prompt += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch)", i+1, req.Count)
-
-		events := make(chan llm.SSEEvent, 10)
-		resultCh := make(chan batchResult, 1)
-
-		go func(p string) {
-			defer close(events)
-			recipe, messages, err := h.orchestrator.GenerateWithTag(r.Context(), p, events, "generation")
-			if err != nil {
-				events <- llm.SSEEvent{Type: "error", Message: err.Error()}
-			}
-			resultCh <- batchResult{recipe, messages}
-		}(prompt)
-
-		for event := range events {
-			data, _ := json.Marshal(event)
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				return
-			}
-			flusher.Flush()
-		}
-
-		res := <-resultCh
-		if res.recipe != nil {
-			titles = append(titles, res.recipe.Title)
-		}
-		h.saveChat(prompt, res.messages)
+		res := <-results
+		h.saveChat(res.prompt, res.messages)
 	}
 }
 

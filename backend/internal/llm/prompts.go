@@ -69,7 +69,7 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 
 	cuisineType := req.CuisineType
 	if cuisineType == "" {
-		cuisineType = pickLeastRepresentedCuisine(SeedCuisineCounts(cuisineCounts))
+		cuisineType = PickLeastRepresentedCuisine(SeedCuisineCounts(cuisineCounts))
 	}
 	if cuisineType != "" {
 		parts = append(parts, fmt.Sprintf("from %s cuisine", cuisineType))
@@ -103,10 +103,10 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 	return prompt
 }
 
-// pickLeastRepresentedCuisine returns the cuisine with the fewest recipes.
+// PickLeastRepresentedCuisine returns the cuisine with the fewest recipes.
 // Alphabetical order is used as a tiebreaker for stable, deterministic picks.
 // Returns an empty string if counts is empty.
-func pickLeastRepresentedCuisine(counts map[string]int) string {
+func PickLeastRepresentedCuisine(counts map[string]int) string {
 	type entry struct {
 		cuisine string
 		count   int
