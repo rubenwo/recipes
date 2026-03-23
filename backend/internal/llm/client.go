@@ -379,14 +379,18 @@ func (c *Client) Model() string {
 }
 
 func (c *Client) IsHealthy(ctx context.Context) bool {
-	var url string
+	var endpoint string
 	switch c.providerType {
 	case ProviderTypeOpenAICompat:
-		url = c.baseURL + "/v1/models"
+		endpoint = c.baseURL + "/v1/models"
 	default:
-		url = c.baseURL + "/api/tags"
+		endpoint = c.baseURL + "/api/tags"
 	}
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return false
 	}

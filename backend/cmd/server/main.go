@@ -88,16 +88,21 @@ func main() {
 	clientPool := llm.NewClientPool(provConfigs)
 	log.Printf("Loaded %d Ollama provider(s)", len(providers))
 
-	// Start background health checker (30 second interval)
+	// Start background health checker (30 second interval).
+	// An immediate check fires in a goroutine so the DB health state is populated
+	// quickly without delaying startup.
 	clientPool.StartHealthChecker(ctx, 30*time.Second, queries)
 	log.Println("Health checker started")
 
-	// Ensure models on all providers
-	for _, c := range clientPool.Clients() {
-		if err := c.EnsureModel(ctx); err != nil {
-			log.Printf("Warning: could not ensure model on %s: %v", c.Model(), err)
+	// Ensure models in the background — pulling can take minutes and must not
+	// block the HTTP server from accepting requests.
+	go func() {
+		for _, c := range clientPool.Clients() {
+			if err := c.EnsureModel(ctx); err != nil {
+				log.Printf("Warning: could not ensure model on %s: %v", c.Model(), err)
+			}
 		}
-	}
+	}()
 
 	webSearcher := tools.NewWebSearcher(cfg.Search.Timeout)
 	dbSearcher := tools.NewDBSearcher(queries)
