@@ -106,7 +106,7 @@ function ScanPanel({ onScanned }) {
         )}
         {scanning && <div className="scan-overlay"><span className="scan-spinner" />Scanning…</div>}
       </div>
-      <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }}
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
         onChange={e => handleFile(e.target.files[0])} />
       {error && <div className="error-message" style={{ marginTop: 8 }}>{error}</div>}
     </div>
