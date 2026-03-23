@@ -10,10 +10,29 @@ database:
   name: recipes
   sslmode: disable
 
+# Seed provider — used only on first startup when no providers exist in the database.
+# After that, manage all providers (and their feature tags) via Settings → LLM Providers.
+#
+# Each AI feature requires a provider tagged for it — there is no fallback to an
+# untagged provider. Assign tags to providers in the Settings UI after first startup.
+#
+# Available tags:
+#   generation           — recipe generation, refinement, and import
+#   background-generation — scheduled background recipe generation
+#   chat                 — cooking assistant chat
+#   search               — AI-powered recipe search
+#   translation          — ingredient translation (e.g. for Albert Heijn ordering)
+#
+# A single provider can carry multiple tags.
+# Recommended two-provider setup:
+#
+#   Provider 1  model: qwen3.5:9b       tags: generation, background-generation, chat, search
+#   Provider 2  model: translategemma:4b  tags: translation
+#
 ollama:
   host: "http://localhost:11434"
-  model: "qwen2.5:7b"
-  generation_timeout: 60s
+  model: "qwen3.5:9b"
+  generation_timeout: 120s
   max_tool_iterations: 5
 
 search:
@@ -22,7 +41,7 @@ search:
 
 # Optional: Edamam Recipes API (https://developer.edamam.com/edamam-recipe-api)
 # When app_id and app_key are set, the edamam_search tool is registered with the LLM.
-# When omitted, only web_search and db_search tools are available.
+# When omitted, only web_search and db_search tools are available during generation.
 edamam:
   app_id: ""
   app_key: ""

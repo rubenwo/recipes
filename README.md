@@ -1,6 +1,38 @@
 # Mise
 
-AI-powered recipe generation and meal planning. Uses Ollama (local LLM) to generate recipes with web search, database search, and optional Edamam API integration.
+Self-hosted recipe management and meal planning. Stores your recipe library, builds weekly meal plans, and generates shopping lists. AI features are optional and additive — the core app works without any LLM configured.
+
+## Features
+
+### Always available (no AI required)
+- Recipe library — create, browse, search, and edit recipes
+- Meal planning — build weekly plans, track servings, aggregate shopping lists
+- Albert Heijn ordering — generate an AH shopping cart from a meal plan
+- Recipe images — automatically fetched from DuckDuckGo image search
+- Duplicate detection — finds near-duplicate recipes in your library
+- Pending recipe queue — review and approve before adding to the library
+
+### Requires a tagged LLM provider (via Ollama or any OpenAI-compatible API)
+
+| Feature | Required tag |
+|---|---|
+| Recipe generation (single, batch, import, refine) | `generation` |
+| Background recipe generation (scheduled) | `background-generation` |
+| Cooking assistant chat | `chat` |
+| AI-powered recipe search | `search` |
+| Ingredient translation (for AH ordering) | `translation` |
+
+Each feature requires a provider explicitly tagged for it — there is no fallback to an untagged provider. A single provider can carry multiple tags (e.g. one capable model for `generation`, `chat`, and `search`; a lighter model for `translation`).
+
+Recommended setup:
+```
+Provider 1  qwen3.5:9b        tags: generation, background-generation, chat, search
+Provider 2  translategemma:4b  tags: translation
+```
+
+Providers and their tags are managed at runtime via **Settings → LLM Providers** — no restart needed.
+
+---
 
 ## Running locally (development)
 
@@ -9,6 +41,8 @@ go run build.go
 cd backend && ./server.exe   # Windows
 cd backend && ./server       # Linux/macOS
 ```
+
+---
 
 ## Docker
 
@@ -40,7 +74,7 @@ docker run -d \
 **Production `config.yaml` notes:**
 - Set `server.cors_origin` to your host URL (e.g. `http://192.168.1.100:8080`) instead of `localhost:5173`
 - Point `database.host` to your PostgreSQL instance
-- Point `ollama.host` to your Ollama instance
+- The `ollama` section seeds the first provider on startup only; configure tags and additional providers via Settings afterwards
 
 ---
 
@@ -80,14 +114,16 @@ database:
 
 ollama:
   host: "http://<ollama-host>:11434"
-  model: "qwen2.5:7b"
-  generation_timeout: 60s
+  model: "qwen3.5:9b"
+  generation_timeout: 120s
   max_tool_iterations: 5
 
 search:
   timeout: 10s
   cache_ttl: 5m
 ```
+
+After first startup, open **Settings → LLM Providers** and add the required tags to your provider(s).
 
 ### Step 2 — Make the GHCR package public
 
@@ -132,4 +168,3 @@ When a new image is pushed to GHCR, TrueNAS does not auto-update. To update manu
 2. Click the three-dot menu → **Edit**
 3. Change the Image Tag to the specific SHA you want (visible on the [GHCR page](https://github.com/rubenwo/mise/pkgs/container/mise))
 4. Click **Save**
-
