@@ -76,3 +76,19 @@ type ChatMessage struct {
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+type InventoryItem struct {
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Amount    float64   `json:"amount"`
+	Unit      string    `json:"unit"`
+	Notes     string    `json:"notes"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type IngredientScan struct {
+	Name      string  `json:"name"`
+	Amount    float64 `json:"amount"`
+	Unit      string  `json:"unit"`
+	Confident bool    `json:"confident"`
+}

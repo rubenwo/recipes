@@ -217,3 +217,26 @@ export function generateStream(endpoint, body) {
     body: JSON.stringify(body),
   });
 }
+
+// ── Inventory ─────────────────────────────────────────
+export function listInventory() {
+  return request('/inventory');
+}
+
+export function createInventoryItem(item) {
+  return request('/inventory', { method: 'POST', body: JSON.stringify(item) });
+}
+
+export function updateInventoryItem(id, item) {
+  return request(`/inventory/${id}`, { method: 'PATCH', body: JSON.stringify(item) });
+}
+
+export function deleteInventoryItem(id) {
+  return request(`/inventory/${id}`, { method: 'DELETE' });
+}
+
+export function scanIngredient(imageFile) {
+  const form = new FormData();
+  form.append('image', imageFile);
+  return fetch(`${API_BASE}/inventory/scan`, { method: 'POST', body: form });
+}

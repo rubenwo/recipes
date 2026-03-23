@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import AddRecipePage from './pages/AddRecipePage';
+import InventoryPage from './pages/InventoryPage';
 import LibraryPage from './pages/LibraryPage';
 import PlanPage from './pages/PlanPage';
 import PendingPage from './pages/PendingPage';
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/plans/:id" element={<PlanPage />} />
           <Route path="/recipe/new" element={<AddRecipePage />} />
           <Route path="/recipe/:id" element={<RecipePage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Layout>

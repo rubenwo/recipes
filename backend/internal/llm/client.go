@@ -60,6 +60,7 @@ func (c *Client) hasTag(tag string) bool {
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
+	Images     []string   `json:"images,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"` // OpenAI-compat: correlates tool result to prior tool call
 }

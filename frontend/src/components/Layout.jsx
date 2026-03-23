@@ -24,6 +24,7 @@ export default function Layout({ children, pendingCount = 0 }) {
               {pendingCount > 0 && <span className="nav-badge">{pendingCount}</span>}
             </Link>
             <Link to="/recipe/new" className={location.pathname === '/recipe/new' ? 'active' : ''}>Add Recipe</Link>
+            <Link to="/inventory" className={location.pathname === '/inventory' ? 'active' : ''}>Inventory</Link>
             <Link to="/plans" className={location.pathname.startsWith('/plans') ? 'active' : ''}>Plans</Link>
             <Link to="/library" className={location.pathname === '/library' ? 'active' : ''}>Library</Link>
             <Link to="/settings" className={location.pathname === '/settings' ? 'active' : ''}>Settings</Link>

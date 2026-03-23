@@ -433,6 +433,61 @@ func (q *Queries) CreateGenerationChat(ctx context.Context, prompt, model string
 	return err
 }
 
+func (q *Queries) ListInventory(ctx context.Context) ([]models.InventoryItem, error) {
+	rows, err := q.pool.Query(ctx, `
+        SELECT id, name, amount, unit, notes, updated_at
+        FROM inventory ORDER BY name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.InventoryItem
+	for rows.Next() {
+		var item models.InventoryItem
+		if err := rows.Scan(&item.ID, &item.Name, &item.Amount, &item.Unit, &item.Notes, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (q *Queries) CreateInventoryItem(ctx context.Context, item *models.InventoryItem) error {
+	return q.pool.QueryRow(ctx, `
+        INSERT INTO inventory (name, amount, unit, notes)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, updated_at`,
+		item.Name, item.Amount, item.Unit, item.Notes,
+	).Scan(&item.ID, &item.UpdatedAt)
+}
+
+func (q *Queries) UpdateInventoryItem(ctx context.Context, item *models.InventoryItem) error {
+	tag, err := q.pool.Exec(ctx, `
+        UPDATE inventory SET name=$2, amount=$3, unit=$4, notes=$5, updated_at=NOW()
+        WHERE id=$1`,
+		item.ID, item.Name, item.Amount, item.Unit, item.Notes,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func (q *Queries) DeleteInventoryItem(ctx context.Context, id int) error {
+	tag, err := q.pool.Exec(ctx, "DELETE FROM inventory WHERE id=$1", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func scanRecipes(rows pgx.Rows, total int) ([]models.Recipe, int, error) {
 	var recipes []models.Recipe
 	for rows.Next() {
