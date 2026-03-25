@@ -51,10 +51,50 @@ body {
   padding: 8px 0;
 }
 
+/* ── Hamburger (mobile only) ──────────────────────────── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 6px;
+  border-radius: 6px;
+}
+.nav-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: rgba(255,255,255,0.75);
+  border-radius: 2px;
+  transition: all 0.2s;
+  transform-origin: center;
+}
+.nav-hamburger-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger-open span:nth-child(2) { opacity: 0; }
+.nav-hamburger-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
 @media (max-width: 600px) {
-  .header { padding: 0 12px; }
-  .nav { gap: 2px; flex-wrap: wrap; }
-  .nav a { padding: 5px 10px; font-size: 12px; }
+  .header { padding: 0 12px; position: relative; }
+  .nav-hamburger { display: flex; }
+  .nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #1c1510;
+    flex-direction: column;
+    padding: 8px 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    gap: 2px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .nav.nav-open { display: flex; }
+  .nav a { padding: 11px 14px; font-size: 14px; border-radius: 8px; }
 }
 
 .logo {
@@ -607,9 +647,55 @@ h3 {
 .recipe-detail-header .difficulty-hard { color: #fca5a5; }
 .recipe-detail-image { width: 100%; height: 320px; object-fit: cover; display: block; }
 .recipe-detail-image-action { padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.recipe-body { display: grid; grid-template-columns: 1fr; gap: 0; padding: 28px; }
+
+/* ── Mobile tabs (hidden on desktop) ─────────────────── */
+.mobile-tabs { display: none; }
+
+/* ── Recipe content area (ingredients + steps) ──────── */
+.recipe-content-area { display: grid; grid-template-columns: 1fr; gap: 0; padding: 28px; }
 @media (min-width: 640px) {
-  .recipe-body { grid-template-columns: 280px 1fr; gap: 32px; }
+  .recipe-content-area { grid-template-columns: 280px 1fr; gap: 32px; }
+}
+
+/* ── Mobile layout ────────────────────────────────────── */
+@media (max-width: 639px) {
+  .main { padding: 20px 14px; }
+  .recipe-detail-header { padding: 20px 18px; }
+  .recipe-detail-image { height: 200px; }
+  .recipe-content-area { padding: 16px; }
+  .cooking-chat { padding: 16px 16px 20px; }
+
+  .mobile-tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 60px;
+    z-index: 5;
+  }
+  .mobile-tab {
+    flex: 1;
+    padding: 11px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: var(--font-body);
+  }
+  .mobile-tab-active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* Hide all tab panels by default on mobile */
+  .recipe-tab-panel { display: none; }
+  /* Show the active panel */
+  .mobile-tab-panel-active { display: block; }
+
+  /* Bigger chat scroll area when it has the full screen */
+  .recipe-tab-panel .chat-messages { max-height: 55vh; }
 }
 .recipe-ingredients {
   background: var(--bg);
@@ -653,8 +739,8 @@ h3 {
   font-size: 12px;
   font-weight: 700;
 }
-.recipe-detail .recipe-tags { padding: 0 28px 20px; }
-.recipe-model { padding: 0 28px 24px; font-size: 12px; color: var(--text-secondary); }
+.recipe-detail .recipe-tags { margin-top: 16px; }
+.recipe-model { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
 
 /* ── Recipe Page ──────────────────────────────────────── */
 .recipe-page-actions { display: flex; gap: 8px; margin-bottom: 24px; }
