@@ -44,6 +44,13 @@ IMPORTANT: You MUST respond with valid JSON matching this exact structure:
   "servings": 4,
   "difficulty": "easy",
   "ingredients": [
+    {"name": "onion", "amount": 1, "unit": ""},
+    {"name": "garlic", "amount": 3, "unit": "clove"},
+    {"name": "bell pepper", "amount": 2, "unit": ""},
+    {"name": "chicken breast", "amount": 400, "unit": "g"},
+    {"name": "olive oil", "amount": 30, "unit": "ml"},
+    {"name": "salt", "amount": 5, "unit": "g"},
+    {"name": "cumin", "amount": 2, "unit": "tsp"},
     {"name": "ingredient name", "amount": 200, "unit": "g", "notes": "optional notes"}
   ],
   "instructions": [
@@ -57,7 +64,8 @@ IMPORTANT: You MUST respond with valid JSON matching this exact structure:
 Rules:
 - difficulty must be one of: easy, medium, hard
 - All amounts must be numbers (not strings)
-- Use metric units: grams (g), kilograms (kg), milliliters (ml), liters (l). Teaspoons (tsp) and tablespoons (tbsp) are also acceptable for small amounts. Do NOT use cups, ounces, pounds, or other imperial units.
+- Whole items use count units: garlic uses "clove" (e.g. 3 clove), eggs/onions/bell peppers/tomatoes/lemons/limes/carrots/potatoes/avocados use "" empty unit (e.g. 2 onions → amount 2, unit ""). Do NOT use grams for these.
+- All other ingredients use metric units: grams (g), kilograms (kg), milliliters (ml), liters (l). Teaspoons (tsp) and tablespoons (tbsp) are acceptable for spices and small liquid amounts. Do NOT use cups, ounces, pounds, or other imperial units.
 - Include at least 3 ingredients and 3 instructions
 - Be specific with measurements and cooking times
 - For tags, use relevant labels from this list when appropriate: high-protein, low-carb, omega-3, low-calorie, high-fiber, meal-prep, quick, budget-friendly, one-pot, freezer-friendly. You may also add other descriptive tags.

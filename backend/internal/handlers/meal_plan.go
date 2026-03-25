@@ -303,9 +303,61 @@ func (h *MealPlanHandler) OrderAH(w http.ResponseWriter, r *http.Request) {
 }
 
 // sizeAdjectives are leading qualifiers that do not change what ingredient to buy.
+// These are stripped from the front of an ingredient name (repeatedly) during normalization.
+// Only strip from the front to avoid breaking compound ingredients like "ground beef".
 var sizeAdjectives = map[string]bool{
+	// Size / quantity
 	"large": true, "small": true, "medium": true, "whole": true, "extra": true,
-	"fresh": true, "raw": true, "frozen": true,
+	// State
+	"fresh": true, "freshly": true, "raw": true, "frozen": true, "dried": true,
+	"cooked": true, "roasted": true, "toasted": true,
+	// Prep method (leading only)
+	"minced": true, "chopped": true, "diced": true, "sliced": true,
+	"grated": true, "shredded": true, "crushed": true, "peeled": true,
+	"rinsed": true, "softened": true, "melted": true, "sifted": true, "packed": true,
+	// Animal cut qualifiers
+	"tender": true, "boneless": true, "skinless": true, "lean": true, "trimmed": true,
+	// Quality / origin
+	"organic": true, "natural": true,
+}
+
+// ingredientAliases maps a fully-normalized name to its canonical equivalent.
+// Applied after all other normalization so that stripping can produce matchable keys.
+// Keys and values must be lowercase and already free of parentheticals/commas.
+var ingredientAliases = map[string]string{
+	// Flour variants — all map to plain "flour" for shopping purposes
+	"all purpose flour":  "flour",
+	"all-purpose flour":  "flour",
+	"wheat flour":        "flour",
+	"whole wheat flour":  "flour",
+	"plain flour":        "flour",
+	"self rising flour":  "flour",
+	"self-rising flour":  "flour",
+	// Pepper — coarseness/grind are irrelevant at the store
+	"black pepper":         "pepper",
+	"ground black pepper":  "pepper",
+	"cracked black pepper": "pepper",
+	"black peppercorn":     "pepper",
+	"white pepper":         "pepper",
+	"ground white pepper":  "pepper",
+	"white peppercorn":     "pepper",
+	// Stock ↔ broth
+	"chicken broth":      "chicken stock",
+	"vegetable broth":    "vegetable stock",
+	"beef broth":         "beef stock",
+	"fish broth":         "fish stock",
+	// Cream variants
+	"heavy cream":          "cream",
+	"heavy whipping cream": "cream",
+	"double cream":         "cream",
+	"whipping cream":       "cream",
+	// Spring onion / scallion
+	"spring onion": "green onion",
+	"scallion":     "green onion",
+	// Tomato paste / purée
+	"tomato puree": "tomato paste",
+	// Garlic
+	"garlic clove": "garlic",
 }
 
 // ingredientDensity maps a normalized ingredient name to its density in g/mL,
@@ -344,6 +396,7 @@ var ingredientDensity = map[string]float64{
 
 // normalizeIngredientName strips common leading adjectives, parentheticals,
 // trailing modifiers and simple plurals so variant names key together.
+// It then applies the ingredientAliases table to canonicalize known synonyms.
 func normalizeIngredientName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	// Strip parenthetical notes: "butter (unsalted)" → "butter"
@@ -358,7 +411,8 @@ func normalizeIngredientName(name string) string {
 	for _, suffix := range []string{" for serving", " for garnish", " for coating", " to taste", " to serve"} {
 		name = strings.TrimSuffix(name, suffix)
 	}
-	// Strip leading size/quality adjectives (only when words remain after stripping)
+	// Strip leading size/quality/prep adjectives (only when words remain after stripping).
+	// Repeated so "freshly ground black pepper" → "ground black pepper" → "black pepper".
 	words := strings.Fields(name)
 	for len(words) > 1 && sizeAdjectives[words[0]] {
 		words = words[1:]
@@ -368,6 +422,10 @@ func normalizeIngredientName(name string) string {
 	// Avoid stripping from words ending in "ss" (e.g. "molasses").
 	if len(name) > 3 && strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") {
 		name = name[:len(name)-1]
+	}
+	// Apply synonym/alias table for known equivalents (flour variants, broth↔stock, etc.)
+	if canonical, ok := ingredientAliases[name]; ok {
+		name = canonical
 	}
 	return name
 }
@@ -433,11 +491,159 @@ func roundAmount(amount float64) float64 {
 	return math.Round(amount*100) / 100
 }
 
+// compactIngredientName removes spaces and hyphens so that "chicken breast"
+// and "chickenbreast" produce the same compact key for fuzzy comparison.
+func compactIngredientName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r != ' ' && r != '-' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// levenshteinDistance computes the edit distance between two strings.
+func levenshteinDistance(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	la, lb := len(ra), len(rb)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+	prev := make([]int, lb+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	curr := make([]int, lb+1)
+	for i := 1; i <= la; i++ {
+		curr[0] = i
+		for j := 1; j <= lb; j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			del := prev[j] + 1
+			ins := curr[j-1] + 1
+			sub := prev[j-1] + cost
+			if del < ins {
+				curr[j] = del
+			} else {
+				curr[j] = ins
+			}
+			if sub < curr[j] {
+				curr[j] = sub
+			}
+		}
+		prev, curr = curr, prev
+	}
+	return prev[lb]
+}
+
+// ingredientNameSimilarity returns a [0,1] similarity score between two
+// already-normalized ingredient names. It strips spaces/hyphens before
+// comparing so that "chicken breast" and "chickenbreast" score 1.0.
+// Uses the max of edit-distance similarity and character-bigram Jaccard.
+func ingredientNameSimilarity(a, b string) float64 {
+	ca, cb := compactIngredientName(a), compactIngredientName(b)
+	if ca == cb {
+		return 1.0
+	}
+	maxLen := len(ca)
+	if len(cb) > maxLen {
+		maxLen = len(cb)
+	}
+	if maxLen == 0 {
+		return 1.0
+	}
+	editSim := 1.0 - float64(levenshteinDistance(ca, cb))/float64(maxLen)
+	bigramSim := jaccardBigrams(ca, cb) // reuse helper from recipes.go (same package)
+	if editSim > bigramSim {
+		return editSim
+	}
+	return bigramSim
+}
+
+// preferredIngredientName returns the "better" of two fuzzy-equivalent names.
+// Prefers more words (properly spaced), then longer, then lexicographically smaller.
+func preferredIngredientName(a, b string) string {
+	wa, wb := len(strings.Fields(a)), len(strings.Fields(b))
+	if wa != wb {
+		if wa > wb {
+			return a
+		}
+		return b
+	}
+	if len(a) != len(b) {
+		if len(a) > len(b) {
+			return a
+		}
+		return b
+	}
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// fuzzyCanonicalNames clusters the given names by similarity and returns a
+// map from each name to its group's canonical representative.
+// Names whose compact forms are identical, or whose similarity exceeds the
+// threshold, are merged into one group. The canonical is the "best" name
+// as determined by preferredIngredientName.
+func fuzzyCanonicalNames(names []string) map[string]string {
+	const threshold = 0.85
+
+	// Union-Find: parent[n] starts as n itself.
+	parent := make(map[string]string, len(names))
+	for _, n := range names {
+		parent[n] = n
+	}
+	var find func(string) string
+	find = func(n string) string {
+		if parent[n] != n {
+			parent[n] = find(parent[n]) // path compression
+		}
+		return parent[n]
+	}
+	union := func(a, b string) {
+		ra, rb := find(a), find(b)
+		if ra == rb {
+			return
+		}
+		// Pick the preferred name as the new root.
+		if preferredIngredientName(ra, rb) == ra {
+			parent[rb] = ra
+		} else {
+			parent[ra] = rb
+		}
+	}
+
+	// O(n²) similarity check — fine for typical ingredient counts (~50-150).
+	for i, a := range names {
+		for _, b := range names[i+1:] {
+			if ingredientNameSimilarity(a, b) >= threshold {
+				union(a, b)
+			}
+		}
+	}
+
+	// Build final canonical map with full path compression.
+	result := make(map[string]string, len(names))
+	for _, n := range names {
+		result[n] = find(n)
+	}
+	return result
+}
+
 // consolidateIngredients merges duplicate ingredients by:
 //  1. normalizing names and converting to base units
-//  2. re-aggregating by {normName, baseUnit}
-//  3. cross-unit merging g↔ml using known ingredient densities
-//  4. rounding countable items up to the nearest whole number
+//  2. fuzzy-grouping similar names (handles typos and compound-word variants)
+//  3. re-aggregating by {canonicalName, baseUnit}
+//  4. cross-unit merging g↔ml using known ingredient densities
+//  5. rounding countable items up to the nearest whole number
 func consolidateIngredients(ingredients []models.AggregatedIngredient) []models.AggregatedIngredient {
 	type aggKey struct{ name, unit string }
 	type entry struct {
@@ -459,6 +665,45 @@ func consolidateIngredients(ingredients []models.AggregatedIngredient) []models.
 		agg[k].amount += baseAmount
 		for _, r := range ing.Recipes {
 			agg[k].recipes[r] = true
+		}
+	}
+
+	// Fuzzy name grouping: collect distinct normNames, cluster by similarity,
+	// then re-key the agg map so that fuzzy-equivalent names share one entry.
+	{
+		nameSet := make(map[string]struct{}, len(agg))
+		for k := range agg {
+			nameSet[k.name] = struct{}{}
+		}
+		names := make([]string, 0, len(nameSet))
+		for n := range nameSet {
+			names = append(names, n)
+		}
+		canon := fuzzyCanonicalNames(names)
+
+		// Only re-aggregate when at least one name maps to a different canonical.
+		needsRemap := false
+		for n, c := range canon {
+			if n != c {
+				needsRemap = true
+				break
+			}
+		}
+		if needsRemap {
+			type aggKey2 = aggKey
+			agg2 := map[aggKey2]*entry{}
+			for k, e := range agg {
+				c := canon[k.name]
+				k2 := aggKey2{c, k.unit}
+				if agg2[k2] == nil {
+					agg2[k2] = &entry{normName: c, baseUnit: k.unit, recipes: map[string]bool{}}
+				}
+				agg2[k2].amount += e.amount
+				for r := range e.recipes {
+					agg2[k2].recipes[r] = true
+				}
+			}
+			agg = agg2
 		}
 	}
 
