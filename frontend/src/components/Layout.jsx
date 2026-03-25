@@ -1,15 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function Layout({ children, pendingCount = 0 }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef(null);
 
   const closeMenu = () => setMenuOpen(false);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => {
+      if (headerRef.current && !headerRef.current.contains(e.target)) {
+        closeMenu();
+      }
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [menuOpen]);
+
   return (
     <div className="app">
-      <header className="header">
+      <header className="header" ref={headerRef}>
         <div className="header-content">
           <Link to="/" className="logo" onClick={closeMenu}>
             <svg width="28" height="22" viewBox="0 0 28 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
