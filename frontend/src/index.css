@@ -118,6 +118,7 @@ body {
 }
 
 .nav { display: flex; gap: 2px; }
+@media (max-width: 600px) { .nav { display: none; } }
 .nav a {
   padding: 6px 13px;
   border-radius: 7px;
