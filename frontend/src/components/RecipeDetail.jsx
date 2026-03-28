@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchRecipeImage, updateRecipeContent } from '../api/client';
 import RecipeEditForm from './RecipeEditForm';
 import CookingChat from './CookingChat';
+import AddToPlanMenu from './AddToPlanMenu';
 import { useInventory } from '../hooks/useInventory';
 import { matchIngredients, stockSummary } from '../utils/inventoryMatch';
 
@@ -14,6 +15,8 @@ export default function RecipeDetail({ recipe: initialRecipe }) {
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
+  const addToPlanBtnRef = useRef(null);
 
   // Auto-fetch image on mount if missing
   useEffect(() => {
@@ -55,8 +58,26 @@ export default function RecipeDetail({ recipe: initialRecipe }) {
   return (
     <div className="recipe-detail">
       <div className="recipe-detail-header">
-        <h2>{recipe.title}</h2>
-        {recipe.cuisine_type && <span className="cuisine-badge">{recipe.cuisine_type}</span>}
+        <div className="recipe-detail-title-row">
+          <h2>{recipe.title}</h2>
+          {recipe.cuisine_type && <span className="cuisine-badge">{recipe.cuisine_type}</span>}
+          {recipe.id && (
+            <button
+              ref={addToPlanBtnRef}
+              className="btn btn-secondary btn-sm recipe-detail-add-plan-btn"
+              onClick={() => setShowPlanMenu(v => !v)}
+            >
+              + Add to plan
+            </button>
+          )}
+          {showPlanMenu && (
+            <AddToPlanMenu
+              recipeId={recipe.id}
+              anchorEl={addToPlanBtnRef.current}
+              onClose={() => setShowPlanMenu(false)}
+            />
+          )}
+        </div>
         <p className="recipe-description">{recipe.description}</p>
         <div className="recipe-meta">
           {recipe.prep_time_minutes > 0 && <span>{'\u23F1'} Prep: {recipe.prep_time_minutes} min</span>}

@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchRecipeImage, previewImageByTitle } from '../api/client';
 import { useInventory } from '../hooks/useInventory';
 import { matchIngredients, stockSummary } from '../utils/inventoryMatch';
+import AddToPlanMenu from './AddToPlanMenu';
 
 export default function RecipeCard({ recipe: initialRecipe, showLink = false, showIngredients = false, showInstructions = false, onDelete, fetchImageEndpoint }) {
   const [recipe, setRecipe] = useState(initialRecipe);
   const [fetchingImage, setFetchingImage] = useState(false);
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
+  const addToPlanBtnRef = useRef(null);
   const navigate = useNavigate();
   const inventory = useInventory();
   const matched = matchIngredients(recipe.ingredients, inventory);
@@ -102,12 +105,28 @@ export default function RecipeCard({ recipe: initialRecipe, showLink = false, sh
       <div className="recipe-card-actions" onClick={e => e.stopPropagation()}>
         {showLink && recipe.id && <Link to={`/recipe/${recipe.id}`} className="btn btn-secondary">View</Link>}
         {recipe.id && (
+          <button
+            ref={addToPlanBtnRef}
+            className="btn btn-secondary"
+            onClick={() => setShowPlanMenu(true)}
+          >
+            + Plan
+          </button>
+        )}
+        {recipe.id && (
           <button className="btn btn-secondary" onClick={handleFetchImage} disabled={fetchingImage}>
             {fetchingImage ? 'Fetching...' : 'Refresh Image'}
           </button>
         )}
         {onDelete && <button className="btn btn-danger" onClick={() => onDelete(recipe.id)}>Delete</button>}
       </div>
+      {showPlanMenu && (
+        <AddToPlanMenu
+          recipeId={recipe.id}
+          anchorEl={addToPlanBtnRef.current}
+          onClose={() => setShowPlanMenu(false)}
+        />
+      )}
     </div>
   );
 }

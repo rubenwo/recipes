@@ -1422,3 +1422,84 @@ a, button, input, select, textarea { transition: all 0.15s ease; }
 .inventory-item-amount { color: var(--text-secondary); font-size: 14px; }
 .inventory-item-notes { color: var(--text-secondary); font-size: 13px; font-style: italic; }
 .inventory-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ── Add to Plan Menu ─────────────────────────────────── */
+.add-to-plan-backdrop {
+  position: fixed; inset: 0; z-index: 400;
+}
+.add-to-plan-menu {
+  position: fixed; z-index: 401;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 220px; max-width: 280px;
+  overflow: hidden;
+  animation: plan-menu-in 0.12s ease;
+}
+@keyframes plan-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.add-to-plan-header {
+  padding: 10px 14px 8px;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.add-to-plan-item {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 9px 14px;
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; font-family: var(--font-body); text-align: left;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.add-to-plan-item:hover:not(:disabled) { background: var(--bg); }
+.add-to-plan-item:disabled { cursor: default; }
+.add-to-plan-item-done { color: var(--primary); }
+.add-to-plan-check { color: var(--primary); font-weight: 700; font-size: 15px; }
+.add-to-plan-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--primary);
+  animation: spin 0.6s linear infinite; flex-shrink: 0;
+}
+.add-to-plan-new {
+  display: flex; align-items: center; width: 100%;
+  padding: 9px 14px; background: none; border: none;
+  border-top: 1px solid var(--border); cursor: pointer;
+  font-size: 14px; font-family: var(--font-body);
+  color: var(--primary); font-weight: 500; text-align: left;
+  transition: background 0.1s;
+}
+.add-to-plan-new:hover { background: var(--bg); }
+.add-to-plan-form {
+  padding: 8px 14px 10px;
+  display: flex; gap: 6px;
+  border-top: 1px solid var(--border);
+}
+.add-to-plan-form input {
+  flex: 1; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; font-family: var(--font-body);
+  background: var(--bg); color: var(--text);
+}
+.add-to-plan-form input:focus { outline: none; border-color: var(--primary); }
+.add-to-plan-form button {
+  padding: 5px 10px; background: var(--primary); color: white;
+  border: none; border-radius: 6px;
+  font-size: 13px; font-family: var(--font-body);
+  font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.add-to-plan-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+.add-to-plan-empty { padding: 10px 14px; font-size: 13px; color: var(--text-secondary); }
+.recipe-detail-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.recipe-detail-title-row h2 { margin: 0; }
+.recipe-detail-add-plan-btn {
+  background: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.3) !important;
+  color: white !important;
+  margin-left: auto;
+}
+.recipe-detail-add-plan-btn:hover { background: rgba(255,255,255,0.2) !important; }

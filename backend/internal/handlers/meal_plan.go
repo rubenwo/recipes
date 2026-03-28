@@ -948,7 +948,26 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "servings array is required (one entry per day)")
 		return
 	}
-	count := len(req.Servings)
+	total := len(req.Servings)
+
+	// Load the current plan to see which recipes are already selected
+	currentPlan, err := h.queries.GetMealPlan(r.Context(), planID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load current plan")
+		return
+	}
+	existingCount := len(currentPlan.Recipes)
+	needed := total - existingCount
+	if needed <= 0 {
+		// Plan already has enough recipes; nothing to add
+		writeJSON(w, http.StatusOK, currentPlan)
+		return
+	}
+
+	existingIDs := make(map[int]bool, existingCount)
+	for _, mpr := range currentPlan.Recipes {
+		existingIDs[mpr.RecipeID] = true
+	}
 
 	// Fetch all recipes (lightweight) and eaten recipe IDs
 	summaries, err := h.queries.ListRecipeSummaries(r.Context())
@@ -967,9 +986,12 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Split into new (never eaten) and eaten pools
+	// Split into new (never eaten) and eaten pools, excluding already-selected recipes
 	var newPool, eatenPool []database.RecipeSummary
 	for _, s := range summaries {
+		if existingIDs[s.ID] {
+			continue
+		}
 		if eaten[s.ID] {
 			eatenPool = append(eatenPool, s)
 		} else {
@@ -978,17 +1000,17 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine targets: ~50/50, adjusting if a pool is too small
-	newTarget := count / 2
-	eatenTarget := count - newTarget
+	newTarget := needed / 2
+	eatenTarget := needed - newTarget
 	if newTarget > len(newPool) {
 		newTarget = len(newPool)
-		eatenTarget = count - newTarget
+		eatenTarget = needed - newTarget
 	}
 	if eatenTarget > len(eatenPool) {
 		eatenTarget = len(eatenPool)
-		newTarget = count - eatenTarget
+		newTarget = needed - eatenTarget
 	}
-	// Final clamp in case total library is smaller than count
+	// Final clamp in case total library is smaller than needed
 	if newTarget > len(newPool) {
 		newTarget = len(newPool)
 	}
@@ -1001,14 +1023,18 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		selected[i], selected[j] = selected[j], selected[i]
 	})
 
-	recipeIDs := make([]int, len(selected))
+	// Append new recipes to the plan (servings come from the tail of req.Servings)
+	defaultServings := req.Servings[len(req.Servings)-1]
 	for i, s := range selected {
-		recipeIDs[i] = s.ID
-	}
-
-	if err := h.queries.ReplacePlanRecipes(r.Context(), planID, recipeIDs, req.Servings); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to set plan recipes")
-		return
+		servings := defaultServings
+		idx := existingCount + i
+		if idx < len(req.Servings) {
+			servings = req.Servings[idx]
+		}
+		if err := h.queries.AddRecipeToPlan(r.Context(), planID, s.ID, servings); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to add recipe to plan")
+			return
+		}
 	}
 	_ = h.queries.InvalidatePlanIngredients(r.Context(), planID)
 

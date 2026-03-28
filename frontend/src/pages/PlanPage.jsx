@@ -291,7 +291,7 @@ function PlanDetail({ planId }) {
           {/* Randomize bar */}
           <div className="plan-section plan-randomize-bar">
             <h3>Randomize</h3>
-            <p className="plan-randomize-hint">Set servings per day, then randomize to auto-fill the plan.</p>
+            <p className="plan-randomize-hint">Set the total number of days and servings per day. Randomize fills empty slots — recipes you&apos;ve already kept stay in the plan.</p>
             <div className="plan-randomize-days">
               {randomDays.map((s, i) => (
                 <div key={i} className="plan-randomize-day">
@@ -316,7 +316,13 @@ function PlanDetail({ planId }) {
                 + Add Day
               </button>
               <button className="btn btn-primary" onClick={handleRandomize} disabled={randomizing}>
-                {randomizing ? 'Randomizing...' : `Randomize ${randomDays.length} days`}
+                {randomizing ? 'Randomizing...' : (() => {
+                  const have = (plan.recipes || []).length;
+                  const need = randomDays.length - have;
+                  if (need <= 0) return `${randomDays.length} days (plan full)`;
+                  if (have === 0) return `Randomize ${randomDays.length} days`;
+                  return `Add ${need} more recipe${need !== 1 ? 's' : ''}`;
+                })()}
               </button>
             </div>
           </div>
