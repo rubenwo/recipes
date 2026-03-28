@@ -271,6 +271,10 @@ func (o *Orchestrator) DeduplicateIngredients(ctx context.Context, groups [][]mo
 			content = content[idx : endIdx+1]
 		}
 	}
+	// LLMs sometimes return a bare object instead of a single-element array.
+	if strings.HasPrefix(content, "{") {
+		content = "[" + content + "]"
+	}
 
 	type llmItem struct {
 		Name   string  `json:"name"`

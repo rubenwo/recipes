@@ -261,7 +261,7 @@ For each group, return a single merged ingredient with the correct total amount 
 Input groups (JSON array of arrays):
 %s
 
-Return a JSON array with exactly one object per input group:
+Return a JSON array with exactly one object per input group. Always use a JSON array even if there is only one group:
 [{"name": "...", "amount": 0, "unit": "..."}]
 
 Rules:
@@ -269,7 +269,7 @@ Rules:
 - Round up countable items (eggs, onions, garlic cloves, etc.) to the nearest whole number
 - Use weight (g or kg) for dry goods, volume (ml or l) for liquids, count (empty unit) for whole items
 - Sum amounts across all entries in each group, converting units as needed
-- Respond ONLY with the JSON array, no other text`, groupsJSON)
+- Respond ONLY with the JSON array (even for a single item), no other text`, groupsJSON)
 }
 
 // BuildBackgroundGeneratePrompt creates a prompt for unattended background recipe generation.
