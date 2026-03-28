@@ -114,7 +114,8 @@ func (q *Queries) UpdateMealPlanStatus(ctx context.Context, id int, status strin
 func (q *Queries) AddRecipeToPlan(ctx context.Context, planID, recipeID, servings int) error {
 	_, err := q.pool.Exec(ctx, `
 		INSERT INTO meal_plan_recipes (meal_plan_id, recipe_id, servings, sort_order)
-		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM meal_plan_recipes WHERE meal_plan_id = $1))`,
+		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM meal_plan_recipes WHERE meal_plan_id = $1))
+		ON CONFLICT (meal_plan_id, recipe_id) DO NOTHING`,
 		planID, recipeID, servings)
 	return err
 }
