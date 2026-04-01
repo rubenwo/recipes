@@ -79,7 +79,21 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 		if len(resp.Message.ToolCalls) == 0 {
 			recipe, err := o.parseRecipe(resp.Message.Content, client)
 			if err != nil {
-				return nil, messages, err
+				// Model returned non-JSON (e.g. markdown). Ask it to reformat.
+				events <- SSEEvent{Type: "status", Message: "Reformatting response as JSON..."}
+				fixMessages := append(messages, Message{
+					Role:    "user",
+					Content: "Your response was not valid JSON. Please output only the recipe JSON object with no other text.",
+				})
+				fixResp, fixErr := client.ChatJSON(ctx, fixMessages)
+				if fixErr != nil {
+					return nil, messages, err // return original parse error
+				}
+				messages = append(messages, fixResp.Message)
+				recipe, err = o.parseRecipe(fixResp.Message.Content, client)
+				if err != nil {
+					return nil, messages, err
+				}
 			}
 			events <- SSEEvent{Type: "status", Message: "Reviewing recipe..."}
 			applyDeterministicReview(recipe)
@@ -115,7 +129,7 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 	}
 
 	events <- SSEEvent{Type: "status", Message: "Max iterations reached, generating final recipe..."}
-	resp, err := client.Chat(ctx, messages, nil)
+	resp, err := client.ChatJSON(ctx, messages)
 	if err != nil {
 		return nil, messages, fmt.Errorf("final chat request failed: %w", err)
 	}
@@ -146,7 +160,7 @@ func (o *Orchestrator) GenerateRefine(ctx context.Context, userPrompt string, ev
 		{Role: "user", Content: userPrompt},
 	}
 
-	resp, err := client.Chat(ctx, messages, nil)
+	resp, err := client.ChatJSON(ctx, messages)
 	if err != nil {
 		return nil, messages, fmt.Errorf("chat request failed: %w", err)
 	}
