@@ -15,8 +15,53 @@ var KnownCuisines = []string{
 	"American", "Argentine", "Brazilian", "British", "Caribbean",
 	"Chinese", "Dutch", "Eastern European", "Ethiopian", "Filipino",
 	"French", "German", "Indian", "Italian", "Japanese", "Korean",
-	"Mediterranean", "Mexican", "Middle Eastern", "Moroccan", "Peruvian",
+	"Malaysian", "Mediterranean", "Mexican", "Middle Eastern", "Moroccan", "Peruvian",
 	"Scandinavian", "Spanish", "Thai", "Turkish", "Vietnamese",
+}
+
+// cuisineAliases maps non-canonical cuisine names to their canonical form.
+// All Malay, Nyonya, and Peranakan variants are unified under "Malaysian".
+var cuisineAliases = map[string]string{
+	"malay":            "Malaysian",
+	"malaysian":        "Malaysian",
+	"nyonya":           "Malaysian",
+	"nonya":            "Malaysian",
+	"peranakan":        "Malaysian",
+	"nyonya peranakan": "Malaysian",
+	"nonya peranakan":  "Malaysian",
+	"malay/nyonya":     "Malaysian",
+}
+
+// NormalizeCuisine maps cuisine aliases to their canonical name.
+// Returns the input unchanged if no alias is found.
+func NormalizeCuisine(cuisine string) string {
+	if canonical, ok := cuisineAliases[strings.ToLower(strings.TrimSpace(cuisine))]; ok {
+		return canonical
+	}
+	return cuisine
+}
+
+// AllCuisines returns a sorted, deduplicated list of every cuisine the app
+// recognises: the hardcoded KnownCuisines plus any cuisine already present in
+// the database (via counts). This is used to constrain the LLM's cuisine_type
+// output so it never invents a new label that diverges from the existing set.
+func AllCuisines(counts map[string]int) []string {
+	seen := make(map[string]bool, len(KnownCuisines)+len(counts))
+	all := make([]string, 0, len(KnownCuisines)+len(counts))
+	for _, c := range KnownCuisines {
+		if !seen[c] {
+			seen[c] = true
+			all = append(all, c)
+		}
+	}
+	for c := range counts {
+		if c != "" && !seen[c] {
+			seen[c] = true
+			all = append(all, c)
+		}
+	}
+	sort.Strings(all)
+	return all
 }
 
 // SeedCuisineCounts returns a copy of counts that includes every KnownCuisine
@@ -102,6 +147,10 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 
 	if req.Servings > 0 {
 		prompt += fmt.Sprintf(" The `servings` field in your JSON MUST be %d and all ingredient amounts MUST be scaled accordingly.", req.Servings)
+	}
+
+	if cuisines := AllCuisines(cuisineCounts); len(cuisines) > 0 {
+		prompt += "\n\nThe `cuisine_type` in your JSON MUST be one of: " + strings.Join(cuisines, ", ") + "."
 	}
 
 	if len(existingTitles) > 0 {
@@ -275,7 +324,9 @@ Rules:
 // BuildBackgroundGeneratePrompt creates a prompt for unattended background recipe generation.
 // targetCuisine is pre-selected by the caller based on the current cuisine distribution;
 // pass an empty string to let the model choose freely.
-func BuildBackgroundGeneratePrompt(targetCuisine string, existingTitles []string, index, total, servings int) string {
+// allCuisines is the full list of valid cuisine names (KnownCuisines ∪ DB cuisines);
+// pass nil to skip the constraint.
+func BuildBackgroundGeneratePrompt(targetCuisine string, allCuisines []string, existingTitles []string, index, total, servings int) string {
 	cuisineDesc := ""
 	if targetCuisine != "" {
 		cuisineDesc = targetCuisine + " "
@@ -285,6 +336,10 @@ func BuildBackgroundGeneratePrompt(targetCuisine string, existingTitles []string
 			"The `servings` field in your JSON MUST be %d and all ingredient amounts MUST be scaled accordingly.",
 		cuisineDesc, servings, servings,
 	)
+
+	if len(allCuisines) > 0 {
+		prompt += "\n\nThe `cuisine_type` in your JSON MUST be one of: " + strings.Join(allCuisines, ", ") + "."
+	}
 
 	if total > 1 {
 		prompt += fmt.Sprintf("\n\n(Recipe %d of %d in this background batch — make it unique from others in this batch.)", index, total)

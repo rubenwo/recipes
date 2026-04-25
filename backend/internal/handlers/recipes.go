@@ -139,6 +139,8 @@ func (h *RecipeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	recipe.CuisineType = llm.NormalizeCuisine(recipe.CuisineType)
+
 	if err := h.queries.CreateRecipe(r.Context(), &recipe); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create recipe")
 		return
@@ -183,7 +185,7 @@ func (h *RecipeHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.queries.UpdateRecipeContent(r.Context(), id, req.Ingredients, req.Instructions, req.CuisineType); err != nil {
+	if err := h.queries.UpdateRecipeContent(r.Context(), id, req.Ingredients, req.Instructions, llm.NormalizeCuisine(req.CuisineType)); err != nil {
 		if err == pgx.ErrNoRows {
 			writeError(w, http.StatusNotFound, "recipe not found")
 			return
