@@ -1031,6 +1031,25 @@ a, button, input, select, textarea { transition: all 0.15s ease; }
 .completed-plan-status-skipped { color: var(--text-secondary); }
 .completed-plan-rating { font-size: 12px; }
 
+/* ── Eat-history badge on RecipeCard ──────────────────── */
+.eat-badge { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 12px; font-weight: 600; border: 1px solid #fde68a; white-space: nowrap; }
+.eat-badge-rating { font-weight: 600; }
+
+/* ── Recipe history tab ───────────────────────────────── */
+.recipe-history { margin-top: 8px; }
+.recipe-history-summary { padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+.recipe-history-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.recipe-history-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.recipe-history-item-skipped { opacity: 0.55; }
+.recipe-history-item-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.recipe-history-plan { font-weight: 600; color: var(--text); text-decoration: none; }
+.recipe-history-plan:hover { color: var(--primary); text-decoration: underline; }
+.recipe-history-item-meta { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.recipe-history-status { font-size: 12px; font-weight: 600; }
+.recipe-history-status-done { color: var(--success); }
+.recipe-history-status-skipped { color: var(--text-secondary); }
+.recipe-history-rating { font-size: 12px; }
+
 /* ── Ingredient Summary ───────────────────────────────── */
 .ingredient-summary { margin-top: 20px; background: var(--bg); border-radius: 8px; padding: 20px; border: 1px solid var(--border); }
 .ingredient-summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

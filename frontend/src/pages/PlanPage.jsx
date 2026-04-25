@@ -11,6 +11,7 @@ import AHOrderModal from '../components/AHOrderModal';
 import CookingChat from '../components/CookingChat';
 import StarRating, { StarRatingReadOnly } from '../components/StarRating';
 import { useInventory } from '../hooks/useInventory';
+import { revalidateEatCounts } from '../hooks/useEatCounts';
 import { matchIngredients, stockSummary } from '../utils/inventoryMatch';
 
 function BrowseRecipeCard({ recipe, servings, onServingsChange, onAdd, adding, inventory }) {
@@ -241,12 +242,14 @@ function PlanDetail({ planId }) {
   const handleComplete = async (recipeId, completed) => {
     const updated = await updatePlanRecipe(planId, recipeId, { completed });
     setPlan(updated);
+    revalidateEatCounts();
   };
 
   // rating: 1-10 sets, 0 clears, called only when current.completed is true.
   const handleRate = async (recipeId, rating) => {
     const updated = await updatePlanRecipe(planId, recipeId, { rating });
     setPlan(updated);
+    revalidateEatCounts();
   };
 
   const handleEndPeriod = async () => {

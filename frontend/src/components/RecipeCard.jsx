@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchRecipeImage, previewImageByTitle } from '../api/client';
 import { useInventory } from '../hooks/useInventory';
+import { useEatCounts } from '../hooks/useEatCounts';
 import { matchIngredients, stockSummary } from '../utils/inventoryMatch';
 import AddToPlanMenu from './AddToPlanMenu';
 
@@ -14,6 +15,9 @@ export default function RecipeCard({ recipe: initialRecipe, showLink = false, sh
   const inventory = useInventory();
   const matched = matchIngredients(recipe.ingredients, inventory);
   const summary = stockSummary(matched);
+  // Eat history for the badge — only meaningful for saved recipes (have an id).
+  const eatCounts = useEatCounts();
+  const stats = recipe.id ? eatCounts[recipe.id] : null;
 
   // Auto-fetch image on mount when missing.
   // Saved recipes (have id): fetch and store via the normal endpoint.
@@ -70,6 +74,18 @@ export default function RecipeCard({ recipe: initialRecipe, showLink = false, sh
         {summary && (
           <span className={`stock-badge ${summary.missing === 0 ? 'stock-badge-all' : summary.inStock === 0 ? 'stock-badge-none' : 'stock-badge-partial'}`}>
             {summary.missing === 0 ? 'all in stock' : `${summary.missing} missing`}
+          </span>
+        )}
+        {stats && stats.count > 0 && (
+          <span className="eat-badge" title={
+            stats.last_cooked_at
+              ? `Last cooked ${new Date(stats.last_cooked_at).toLocaleDateString()}`
+              : `Cooked ${stats.count}×`
+          }>
+            {'🍽'} {stats.count}{stats.count === 1 ? '' : '×'}
+            {stats.avg_rating != null && (
+              <span className="eat-badge-rating"> · ⭐ {stats.avg_rating.toFixed(1)}</span>
+            )}
           </span>
         )}
       </div>
