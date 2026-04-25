@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+
 	"github.com/rubenwo/mise/internal/database"
 	"github.com/rubenwo/mise/internal/llm"
 	"github.com/rubenwo/mise/internal/models"
@@ -97,10 +98,28 @@ func (h *ChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildCookingSystemPrompt(recipe *models.Recipe) string {
-	recipeJSON, _ := json.MarshalIndent(recipe, "", "  ")
-	return fmt.Sprintf(`You are a helpful cooking assistant. The user is currently cooking the following recipe:
-
-%s
-
-Answer their questions clearly and concisely. You can suggest ingredient substitutions, clarify cooking techniques, explain culinary terms, or provide tips. Use the web_search tool if you need to look something up. Be practical and specific.`, string(recipeJSON))
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "You are a cooking assistant. The user is making this recipe:\n\n")
+	fmt.Fprintf(&sb, "Title: %s\n", recipe.Title)
+	if recipe.CuisineType != "" {
+		fmt.Fprintf(&sb, "Cuisine: %s\n", recipe.CuisineType)
+	}
+	fmt.Fprintf(&sb, "Serves: %d\n", recipe.Servings)
+	if recipe.Description != "" {
+		fmt.Fprintf(&sb, "%s\n", recipe.Description)
+	}
+	sb.WriteString("\nIngredients:\n")
+	for _, ing := range recipe.Ingredients {
+		if ing.Unit == "" {
+			fmt.Fprintf(&sb, "- %g %s\n", ing.Amount, ing.Name)
+		} else {
+			fmt.Fprintf(&sb, "- %g %s %s\n", ing.Amount, ing.Unit, ing.Name)
+		}
+	}
+	sb.WriteString("\nSteps:\n")
+	for i, step := range recipe.Instructions {
+		fmt.Fprintf(&sb, "%d. %s\n", i+1, step)
+	}
+	sb.WriteString("\nAnswer concisely and practically. Use web_search only when you need a fact you do not know.")
+	return sb.String()
 }

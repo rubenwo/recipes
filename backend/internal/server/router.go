@@ -13,7 +13,6 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 	r := chi.NewRouter()
 
 	r.Use(LoggingMiddleware)
-	r.Use(RateLimitMiddleware)
 	r.Use(SecurityHeadersMiddleware)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{corsOrigin},
@@ -85,7 +84,16 @@ func NewRouter(h *handlers.RecipeHandler, g *handlers.GenerateHandler, mp *handl
 	})
 
 	if imagesDir != "" {
-		r.Handle("/images/*", http.StripPrefix("/images/", http.FileServer(http.Dir(imagesDir))))
+		fs := http.FileServer(http.Dir(imagesDir))
+		// Block directory listings — http.FileServer renders an index page
+		// when no index.html exists. Single-user app, but safer-by-default.
+		r.Handle("/images/*", http.StripPrefix("/images/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == "" || req.URL.Path[len(req.URL.Path)-1] == '/' {
+				http.NotFound(w, req)
+				return
+			}
+			fs.ServeHTTP(w, req)
+		})))
 	}
 
 	r.Handle("/*", frontend.Handler())

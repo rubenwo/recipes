@@ -77,46 +77,33 @@ func SeedCuisineCounts(counts map[string]int) map[string]int {
 	return seeded
 }
 
-const systemPrompt = `You are a creative chef and recipe developer. Generate detailed, practical dinner recipes.
-
-IMPORTANT: You MUST respond with valid JSON matching this exact structure:
+const systemPrompt = `You are a chef. Generate one dinner recipe as a JSON object with this shape:
 {
-  "title": "Recipe Title",
-  "description": "A brief description of the dish",
-  "cuisine_type": "Italian",
+  "title": "<recipe name>",
+  "description": "<one short sentence>",
+  "cuisine_type": "<cuisine>",
   "prep_time_minutes": 15,
   "cook_time_minutes": 30,
   "servings": 4,
-  "difficulty": "easy",
+  "difficulty": "easy|medium|hard",
   "ingredients": [
-    {"name": "onion", "amount": 1, "unit": ""},
-    {"name": "garlic", "amount": 3, "unit": "clove"},
-    {"name": "bell pepper", "amount": 2, "unit": ""},
-    {"name": "chicken breast", "amount": 400, "unit": "g"},
-    {"name": "olive oil", "amount": 30, "unit": "ml"},
-    {"name": "salt", "amount": 5, "unit": "g"},
-    {"name": "cumin", "amount": 2, "unit": "tsp"},
-    {"name": "ingredient name", "amount": 200, "unit": "g", "notes": "optional notes"}
+    {"name": "<ingredient>", "amount": 200, "unit": "g", "notes": "optional"}
   ],
-  "instructions": [
-    "Step 1: Do something",
-    "Step 2: Do something else"
-  ],
-  "dietary_restrictions": ["vegetarian"],
-  "tags": ["quick", "high-protein"]
+  "instructions": ["<step>", "<step>", "<step>"],
+  "dietary_restrictions": ["<tag>"],
+  "tags": ["<tag>"]
 }
 
 Rules:
-- difficulty must be one of: easy, medium, hard
-- All amounts must be numbers (not strings)
-- Whole items use count units: garlic uses "clove" (e.g. 3 clove), eggs/onions/bell peppers/tomatoes/lemons/limes/carrots/potatoes/avocados use "" empty unit (e.g. 2 onions → amount 2, unit ""). Do NOT use grams for these.
-- All other ingredients use metric units: grams (g), kilograms (kg), milliliters (ml), liters (l). Teaspoons (tsp) and tablespoons (tbsp) are acceptable for spices and small liquid amounts. Do NOT use cups, ounces, pounds, or other imperial units.
-- Include at least 3 ingredients and 3 instructions
-- Be specific with measurements and cooking times
-- For tags, use relevant labels from this list when appropriate: high-protein, low-carb, omega-3, low-calorie, high-fiber, meal-prep, quick, budget-friendly, one-pot, freezer-friendly. You may also add other descriptive tags.
-- Respond ONLY with the JSON object, no other text`
+- Output JSON only, no surrounding text or markdown.
+- Use metric units (g, kg, ml, l). tsp/tbsp allowed for spices.
+- Whole items (onion, egg, tomato, bell pepper, lemon) use unit "" with a count; garlic uses "clove".
+- At least 3 ingredients and 3 instructions.`
 
-func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cuisineCounts map[string]int) string {
+// BuildGeneratePrompt builds the user prompt for a single generation.
+// Avoid-title hints are appended to the system message by the orchestrator,
+// not included here.
+func BuildGeneratePrompt(req models.GenerateRequest, cuisineCounts map[string]int) string {
 	var parts []string
 	parts = append(parts, "Generate a dinner recipe")
 
@@ -146,15 +133,11 @@ func BuildGeneratePrompt(req models.GenerateRequest, existingTitles []string, cu
 	prompt := strings.Join(parts, " ") + "."
 
 	if req.Servings > 0 {
-		prompt += fmt.Sprintf(" The `servings` field in your JSON MUST be %d and all ingredient amounts MUST be scaled accordingly.", req.Servings)
+		prompt += fmt.Sprintf(" The `servings` field MUST be %d; scale ingredient amounts accordingly.", req.Servings)
 	}
 
 	if cuisines := AllCuisines(cuisineCounts); len(cuisines) > 0 {
-		prompt += "\n\nThe `cuisine_type` in your JSON MUST be one of: " + strings.Join(cuisines, ", ") + "."
-	}
-
-	if len(existingTitles) > 0 {
-		prompt += "\n\nDo NOT generate a recipe with a title that already exists in the collection: " + strings.Join(existingTitles, ", ") + "."
+		prompt += "\n\nThe `cuisine_type` MUST be one of: " + strings.Join(cuisines, ", ") + "."
 	}
 
 	return prompt
@@ -240,45 +223,47 @@ Generate an improved version of this recipe incorporating the feedback. Respond 
 	)
 }
 
-func BuildLeftoverPrompt(ingredients []string, existingTitles []string) string {
-	prompt := fmt.Sprintf(`The user has leftover ingredients from meal planning and wants a recipe that uses them up.
+// BuildLeftoverPrompt builds the user prompt for a leftover-ingredient recipe.
+// Avoid-title hints are added to the system message by the orchestrator.
+func BuildLeftoverPrompt(ingredients []string) string {
+	return fmt.Sprintf(`The user has leftover ingredients and wants a recipe that uses them up.
 
 Leftover ingredients: %s
 
-Generate a recipe that uses as many of these ingredients as possible. Prioritize using the fresh/perishable items.
-Use web_search to find inspiration for recipes that combine these ingredients well.
-Use db_search to check if a similar recipe already exists.`, strings.Join(ingredients, ", "))
-
-	if len(existingTitles) > 0 {
-		prompt += "\n\nDo NOT duplicate any of these existing recipes: " + strings.Join(existingTitles, ", ") + "."
-	}
-
-	return prompt
+Generate a recipe that uses as many of these as possible, prioritizing perishable items.
+Use web_search only if you need cooking technique details. Use db_search to check for similar existing recipes.`, strings.Join(ingredients, ", "))
 }
 
-func BuildImportPrompt(rawText string, existingTitles []string) string {
-	prompt := fmt.Sprintf(`The user wants to import an existing recipe from free-form text. Parse the following text and produce a complete, structured recipe.
+// BuildImportPrompt builds the user prompt for importing a free-form recipe text.
+// Avoid-title hints are added to the system message by the orchestrator.
+func BuildImportPrompt(rawText string) string {
+	return fmt.Sprintf(`Parse the following text into a complete, structured recipe.
 
-The text may only contain a recipe name, or it may include partial ingredients and instructions. Use your tools:
-- Use web_search to find the full recipe details (ingredients, instructions, cooking times) if they are missing or incomplete
-- Use db_search to check if a similar recipe already exists in the database
+The text may be just a name or a partial recipe. Use web_search only if details are missing or incomplete; use db_search to check for an existing similar recipe.
 
-Here is the user's input:
+User input:
 ---
 %s
 ---
 
-Generate the complete recipe JSON based on this input, filling in any missing details from your search results.`, rawText)
-
-	if len(existingTitles) > 0 {
-		prompt += "\n\nThese recipes already exist in the database: " + strings.Join(existingTitles, ", ") + ". Flag if this is a duplicate but still generate the recipe."
-	}
-
-	return prompt
+Generate the complete recipe JSON, filling in any missing details from search results.`, rawText)
 }
 
 func SystemPrompt() string {
 	return systemPrompt
+}
+
+// SystemPromptWithAvoid returns the base system prompt with an avoid-titles
+// addendum appended. Empty avoidTitles returns the unchanged base prompt.
+// Titles are capped at 30 to keep the prompt token-efficient for small models.
+func SystemPromptWithAvoid(avoidTitles []string) string {
+	if len(avoidTitles) == 0 {
+		return systemPrompt
+	}
+	if len(avoidTitles) > 30 {
+		avoidTitles = avoidTitles[:30]
+	}
+	return systemPrompt + "\n\nAvoid these existing titles: " + strings.Join(avoidTitles, ", ") + "."
 }
 
 func BuildScanIngredientPrompt() string {
@@ -300,53 +285,46 @@ Rules:
 - Respond ONLY with the JSON array, no other text`
 }
 
-// BuildDeduplicateIngredientsPrompt builds a prompt asking the LLM to merge groups of
-// ingredients that share the same name but couldn't be merged deterministically.
+// BuildDeduplicateIngredientsPrompt asks the LLM to merge groups of ingredients
+// that share a name but couldn't be merged deterministically. Returns
+// {"items": [...]} so JSON-mode (which requires a top-level object) is satisfied.
 func BuildDeduplicateIngredientsPrompt(groupsJSON string) string {
-	return fmt.Sprintf(`You are consolidating a grocery shopping list. The following groups each contain ingredients that appear to be the same item but are listed with different names or units and could not be merged automatically.
-
-For each group, return a single merged ingredient with the correct total amount in the most practical unit for shopping.
+	return fmt.Sprintf(`Consolidate a grocery shopping list. Each input group contains entries of the same item with different names/units that couldn't be merged automatically.
 
 Input groups (JSON array of arrays):
 %s
 
-Return a JSON array with exactly one object per input group. Always use a JSON array even if there is only one group:
-[{"name": "...", "amount": 0, "unit": "..."}]
+Return one merged ingredient per input group, in this exact shape:
+{"items": [{"name": "<name>", "amount": 0, "unit": "<unit>"}]}
 
 Rules:
-- Use the most common/generic ingredient name in English, lowercase
-- Round up countable items (eggs, onions, garlic cloves, etc.) to the nearest whole number
-- Use weight (g or kg) for dry goods, volume (ml or l) for liquids, count (empty unit) for whole items
-- Sum amounts across all entries in each group, converting units as needed
-- Respond ONLY with the JSON array (even for a single item), no other text`, groupsJSON)
+- Generic English name, lowercase.
+- Round countable items (eggs, onions, cloves) up to the nearest whole number.
+- Weight (g, kg) for dry goods, volume (ml, l) for liquids, "" for whole items.
+- Sum amounts across entries, converting units as needed.
+- Output the JSON object only.`, groupsJSON)
 }
 
 // BuildBackgroundGeneratePrompt creates a prompt for unattended background recipe generation.
-// targetCuisine is pre-selected by the caller based on the current cuisine distribution;
-// pass an empty string to let the model choose freely.
-// allCuisines is the full list of valid cuisine names (KnownCuisines ∪ DB cuisines);
-// pass nil to skip the constraint.
-func BuildBackgroundGeneratePrompt(targetCuisine string, allCuisines []string, existingTitles []string, index, total, servings int) string {
+// targetCuisine is pre-selected by the caller; pass an empty string to let the model choose.
+// allCuisines constrains the model's cuisine_type output to known + DB cuisines; pass nil to skip.
+// Avoid-title hints go in the system message via the orchestrator.
+func BuildBackgroundGeneratePrompt(targetCuisine string, allCuisines []string, index, total, servings int) string {
 	cuisineDesc := ""
 	if targetCuisine != "" {
 		cuisineDesc = targetCuisine + " "
 	}
 	prompt := fmt.Sprintf(
-		"Generate a %sdinner recipe for exactly %d servings. "+
-			"The `servings` field in your JSON MUST be %d and all ingredient amounts MUST be scaled accordingly.",
+		"Generate a %sdinner recipe for exactly %d servings. The `servings` field MUST be %d; scale ingredient amounts accordingly.",
 		cuisineDesc, servings, servings,
 	)
 
 	if len(allCuisines) > 0 {
-		prompt += "\n\nThe `cuisine_type` in your JSON MUST be one of: " + strings.Join(allCuisines, ", ") + "."
+		prompt += "\n\nThe `cuisine_type` MUST be one of: " + strings.Join(allCuisines, ", ") + "."
 	}
 
 	if total > 1 {
-		prompt += fmt.Sprintf("\n\n(Recipe %d of %d in this background batch — make it unique from others in this batch.)", index, total)
-	}
-
-	if len(existingTitles) > 0 {
-		prompt += "\n\nDo NOT generate a recipe with a title that already exists in the collection: " + strings.Join(existingTitles, ", ") + "."
+		prompt += fmt.Sprintf(" (Recipe %d of %d in this batch — make it distinct from the others.)", index, total)
 	}
 
 	return prompt

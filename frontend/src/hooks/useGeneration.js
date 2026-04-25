@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { generateStream } from '../api/client';
 
 let _clientIdCounter = 0;
@@ -12,8 +12,15 @@ export function useGeneration() {
   // Using a ref so updates are visible synchronously when the recipe event
   // arrives in the same parsing loop iteration.
   const pendingWarnings = useRef({});
+  // Holds the AbortController for the current in-flight generation so an
+  // unmount or a new generate() call cancels the previous SSE stream.
+  const abortRef = useRef(null);
 
   const generate = useCallback(async (endpoint, body) => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
     setEvents([]);
@@ -21,12 +28,7 @@ export function useGeneration() {
     pendingWarnings.current = {};
 
     try {
-      const response = await generateStream(endpoint, body);
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(err.error || 'Generation failed');
-      }
-
+      const response = await generateStream(endpoint, body, controller.signal);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -67,10 +69,17 @@ export function useGeneration() {
         }
       }
     } catch (err) {
-      setError(err.message);
+      // AbortError is expected when the user navigates away or restarts; not surfaced.
+      if (err.name !== 'AbortError') setError(err.message);
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setLoading(false);
     }
+  }, []);
+
+  // Abort any in-flight stream when the consuming component unmounts.
+  useEffect(() => () => {
+    if (abortRef.current) abortRef.current.abort();
   }, []);
 
   const reset = useCallback(() => {

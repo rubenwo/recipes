@@ -30,15 +30,18 @@ export default function CookingChat({ recipeId }) {
 
     shouldScrollRef.current = true;
     setInput('');
-    const tempId = Date.now();
-    setMessages(prev => [...prev, { id: tempId, role: 'user', content: message }]);
+    // crypto.randomUUID guarantees no collision between rapid sends — earlier
+    // tempId+1 logic clashed if the user re-sent within the same millisecond.
+    const userMsgId = crypto.randomUUID();
+    const replyMsgId = crypto.randomUUID();
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: message }]);
     setLoading(true);
 
     try {
       const result = await sendChatMessage(recipeId, message);
-      setMessages(prev => [...prev, { id: tempId + 1, role: 'assistant', content: result.response }]);
+      setMessages(prev => [...prev, { id: replyMsgId, role: 'assistant', content: result.response }]);
     } catch {
-      setMessages(prev => [...prev, { id: tempId + 1, role: 'assistant', content: 'Something went wrong. Please try again.' }]);
+      setMessages(prev => [...prev, { id: replyMsgId, role: 'assistant', content: 'Something went wrong. Please try again.' }]);
     } finally {
       setLoading(false);
     }

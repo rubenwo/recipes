@@ -53,7 +53,7 @@ func (o *Orchestrator) Pool() *ClientPool {
 	return o.pool
 }
 
-func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, events chan<- SSEEvent, tag string) (*models.Recipe, []Message, error) {
+func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, avoidTitles []string, events chan<- SSEEvent, tag string) (*models.Recipe, []Message, error) {
 	client := o.pool.AcquireWithTag(tag)
 	if client == nil {
 		return nil, nil, fmt.Errorf("no provider with tag %q configured or healthy", tag)
@@ -62,7 +62,7 @@ func (o *Orchestrator) GenerateWithTag(ctx context.Context, userPrompt string, e
 	events <- SSEEvent{Type: "status", Message: fmt.Sprintf("Starting recipe generation (using %s)...", client.Model())}
 
 	messages := []Message{
-		{Role: "system", Content: SystemPrompt()},
+		{Role: "system", Content: SystemPromptWithAvoid(avoidTitles)},
 		{Role: "user", Content: userPrompt},
 	}
 
@@ -280,25 +280,23 @@ func (o *Orchestrator) DeduplicateIngredients(ctx context.Context, groups [][]mo
 	}
 
 	content := strings.TrimSpace(resp.Message.Content)
-	if idx := strings.Index(content, "["); idx >= 0 {
-		if endIdx := strings.LastIndex(content, "]"); endIdx >= idx {
+	if idx := strings.Index(content, "{"); idx >= 0 {
+		if endIdx := strings.LastIndex(content, "}"); endIdx >= idx {
 			content = content[idx : endIdx+1]
 		}
 	}
-	// LLMs sometimes return a bare object instead of a single-element array.
-	if strings.HasPrefix(content, "{") {
-		content = "[" + content + "]"
-	}
 
-	type llmItem struct {
-		Name   string  `json:"name"`
-		Amount float64 `json:"amount"`
-		Unit   string  `json:"unit"`
+	var parsed struct {
+		Items []struct {
+			Name   string  `json:"name"`
+			Amount float64 `json:"amount"`
+			Unit   string  `json:"unit"`
+		} `json:"items"`
 	}
-	var items []llmItem
-	if err := json.Unmarshal([]byte(content), &items); err != nil {
+	if err := json.Unmarshal([]byte(content), &parsed); err != nil {
 		return nil, fmt.Errorf("failed to parse dedup response: %w\nraw: %s", err, content)
 	}
+	items := parsed.Items
 
 	out := make([]models.AggregatedIngredient, 0, len(items))
 	for i, item := range items {

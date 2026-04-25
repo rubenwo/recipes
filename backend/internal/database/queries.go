@@ -135,14 +135,38 @@ type CuisineMeta struct {
 }
 
 // ListCuisines returns per-cuisine counts and up to 4 preview image URLs.
+// Single CTE with ROW_NUMBER() + array_agg replaces the previous N+1 fan-out.
 func (q *Queries) ListCuisines(ctx context.Context) ([]CuisineMeta, error) {
 	rows, err := q.pool.Query(ctx, `
+		WITH counts AS (
+			SELECT
+				CASE WHEN cuisine_type = '' OR cuisine_type IS NULL THEN 'Other' ELSE cuisine_type END AS ct,
+				COUNT(*) AS cnt
+			FROM recipes
+			GROUP BY ct
+		),
+		ranked AS (
+			SELECT
+				CASE WHEN cuisine_type = '' OR cuisine_type IS NULL THEN 'Other' ELSE cuisine_type END AS ct,
+				image_url,
+				ROW_NUMBER() OVER (
+					PARTITION BY CASE WHEN cuisine_type = '' OR cuisine_type IS NULL THEN 'Other' ELSE cuisine_type END
+					ORDER BY created_at DESC
+				) AS rn
+			FROM recipes
+			WHERE image_url IS NOT NULL AND image_url <> ''
+		)
 		SELECT
-			CASE WHEN cuisine_type = '' OR cuisine_type IS NULL THEN 'Other' ELSE cuisine_type END AS ct,
-			COUNT(*) AS cnt
-		FROM recipes
-		GROUP BY ct
-		ORDER BY ct`)
+			c.ct,
+			c.cnt,
+			COALESCE(
+				ARRAY_AGG(r.image_url ORDER BY r.rn) FILTER (WHERE r.rn IS NOT NULL),
+				ARRAY[]::TEXT[]
+			) AS preview_images
+		FROM counts c
+		LEFT JOIN ranked r ON r.ct = c.ct AND r.rn <= 4
+		GROUP BY c.ct, c.cnt
+		ORDER BY c.ct`)
 	if err != nil {
 		return nil, err
 	}
@@ -151,48 +175,12 @@ func (q *Queries) ListCuisines(ctx context.Context) ([]CuisineMeta, error) {
 	var out []CuisineMeta
 	for rows.Next() {
 		var m CuisineMeta
-		if err := rows.Scan(&m.CuisineType, &m.Count); err != nil {
+		if err := rows.Scan(&m.CuisineType, &m.Count, &m.PreviewImages); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Fetch up to 4 preview images per cuisine in a second pass.
-	for i, m := range out {
-		cuisine := m.CuisineType
-		var imgRows pgx.Rows
-		var imgErr error
-		if cuisine == "Other" {
-			imgRows, imgErr = q.pool.Query(ctx,
-				`SELECT image_url FROM recipes WHERE (cuisine_type = '' OR cuisine_type IS NULL) AND image_url IS NOT NULL AND image_url != '' ORDER BY created_at DESC LIMIT 4`)
-		} else {
-			imgRows, imgErr = q.pool.Query(ctx,
-				`SELECT image_url FROM recipes WHERE cuisine_type = $1 AND image_url IS NOT NULL AND image_url != '' ORDER BY created_at DESC LIMIT 4`,
-				cuisine)
-		}
-		if imgErr != nil {
-			return nil, imgErr
-		}
-		var imgs []string
-		for imgRows.Next() {
-			var url string
-			if err := imgRows.Scan(&url); err != nil {
-				imgRows.Close()
-				return nil, err
-			}
-			imgs = append(imgs, url)
-		}
-		imgRows.Close()
-		if err := imgRows.Err(); err != nil {
-			return nil, err
-		}
-		out[i].PreviewImages = imgs
-	}
-
-	return out, nil
+	return out, rows.Err()
 }
 
 func (q *Queries) ListRecipes(ctx context.Context, limit, offset int, cuisineType string) ([]models.Recipe, int, error) {
@@ -476,11 +464,15 @@ func (q *Queries) LibrarySearch(ctx context.Context, req LibrarySearchRequest) (
 	args := []any{}
 	argIdx := 1
 
+	// ILIKE (case-insensitive substring) so the title/description/cuisine
+	// trigram indexes (migration 015) are used. The JSONB ingredient lookup
+	// stays unindexed; ingredients are filtered on the candidate set produced
+	// by the indexed columns, which keeps the work bounded.
 	for _, word := range strings.Fields(req.Keywords) {
-		pattern := "%" + strings.ToLower(word) + "%"
+		pattern := "%" + word + "%"
 		conditions = append(conditions, fmt.Sprintf(
-			"(LOWER(title) LIKE $%d OR LOWER(description) LIKE $%d OR LOWER(cuisine_type) LIKE $%d"+
-				" OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(ingredients, '[]'::jsonb)) AS ing WHERE LOWER(ing->>'name') LIKE $%d))",
+			"(title ILIKE $%d OR description ILIKE $%d OR cuisine_type ILIKE $%d"+
+				" OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(ingredients, '[]'::jsonb)) AS ing WHERE ing->>'name' ILIKE $%d))",
 			argIdx, argIdx, argIdx, argIdx,
 		))
 		args = append(args, pattern)
@@ -488,7 +480,7 @@ func (q *Queries) LibrarySearch(ctx context.Context, req LibrarySearchRequest) (
 	}
 
 	if req.CuisineType != "" {
-		conditions = append(conditions, fmt.Sprintf("LOWER(cuisine_type) = LOWER($%d)", argIdx))
+		conditions = append(conditions, fmt.Sprintf("cuisine_type ILIKE $%d", argIdx))
 		args = append(args, req.CuisineType)
 		argIdx++
 	}

@@ -143,6 +143,11 @@ func main() {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler: router,
+		// ReadHeaderTimeout / IdleTimeout defend against slowloris-style holds.
+		// WriteTimeout is intentionally unset — generation SSE responses can
+		// take minutes on slow local LLMs.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

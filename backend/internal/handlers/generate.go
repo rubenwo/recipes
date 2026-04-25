@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/rubenwo/mise/internal/database"
@@ -23,38 +22,20 @@ func NewGenerateHandler(o *llm.Orchestrator, q *database.Queries) *GenerateHandl
 	return &GenerateHandler{orchestrator: o, queries: q}
 }
 
-// commonIngredients are very generic ingredients that appear in almost every
-// recipe and add no identifying value to a prompt fingerprint string.
-var commonIngredients = map[string]bool{
-	"salt": true, "pepper": true, "oil": true, "water": true,
-	"butter": true, "sugar": true, "flour": true,
-	"olive oil": true, "vegetable oil": true, "black pepper": true,
-	"cooking oil": true, "salt and pepper": true,
-}
-
-// fingerprintString formats one RecipeFingerprint as a compact string for the
-// generation prompt: "Title (Cuisine: key1, key2, key3)".
-func fingerprintString(fp database.RecipeFingerprint) string {
-	var key []string
-	for _, name := range fp.Ingredients {
-		norm := strings.ToLower(strings.TrimSpace(name))
-		if !commonIngredients[norm] {
-			key = append(key, norm)
-		}
-		if len(key) == 3 {
-			break
-		}
+// avoidTitlesFromFingerprints returns up to 30 bare titles to seed the avoid
+// list passed to the orchestrator. Bare titles cost the fewest tokens; the
+// SystemPromptWithAvoid helper is the authoritative cap.
+func avoidTitlesFromFingerprints(fps []database.RecipeFingerprint) []string {
+	const cap = 30
+	n := len(fps)
+	if n > cap {
+		n = cap
 	}
-	switch {
-	case fp.CuisineType != "" && len(key) > 0:
-		return fmt.Sprintf("%s (%s: %s)", fp.Title, fp.CuisineType, strings.Join(key, ", "))
-	case fp.CuisineType != "":
-		return fmt.Sprintf("%s (%s)", fp.Title, fp.CuisineType)
-	case len(key) > 0:
-		return fmt.Sprintf("%s (%s)", fp.Title, strings.Join(key, ", "))
-	default:
-		return fp.Title
+	out := make([]string, n)
+	for i := 0; i < n; i++ {
+		out[i] = fps[i].Title
 	}
+	return out
 }
 
 // emitNearDuplicateWarnings checks recipe against existing fingerprints and
@@ -89,12 +70,9 @@ func (h *GenerateHandler) Single(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Warning: could not fetch cuisine counts: %v", err)
 	}
 
-	formatted := make([]string, len(fps))
-	for i, fp := range fps {
-		formatted[i] = fingerprintString(fp)
-	}
-	prompt := llm.BuildGeneratePrompt(req, formatted, cuisineCounts)
-	h.streamGeneration(w, r, prompt, fps)
+	avoidTitles := avoidTitlesFromFingerprints(fps)
+	prompt := llm.BuildGeneratePrompt(req, cuisineCounts)
+	h.streamGeneration(w, r, prompt, avoidTitles, fps)
 }
 
 func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
@@ -130,10 +108,7 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Warning: could not fetch cuisine counts: %v", err)
 	}
 
-	formatted := make([]string, len(fps))
-	for i, fp := range fps {
-		formatted[i] = fingerprintString(fp)
-	}
+	avoidTitles := avoidTitlesFromFingerprints(fps)
 
 	// Pre-compute a distinct cuisine for each recipe slot so that concurrent
 	// goroutines don't all pick the same least-represented cuisine.
@@ -147,8 +122,8 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 				tempCounts[slotReq.CuisineType]++
 			}
 		}
-		prompts[i] = llm.BuildGeneratePrompt(slotReq, formatted, cuisineCounts)
-		prompts[i] += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch)", i+1, req.Count)
+		prompts[i] = llm.BuildGeneratePrompt(slotReq, cuisineCounts)
+		prompts[i] += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch.)", i+1, req.Count)
 	}
 
 	type batchResult struct {
@@ -180,7 +155,7 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 				}
 			}()
 
-			recipe, messages, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
+			recipe, messages, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, avoidTitles, events, "generation")
 			close(events)
 			fwdWg.Wait() // ensure all events are forwarded before signalling done
 
@@ -235,13 +210,10 @@ func (h *GenerateHandler) Import(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Warning: could not fetch recipe fingerprints: %v", err)
 	}
-	formatted := make([]string, len(fps))
-	for i, fp := range fps {
-		formatted[i] = fingerprintString(fp)
-	}
+	avoidTitles := avoidTitlesFromFingerprints(fps)
 
-	prompt := llm.BuildImportPrompt(req.RawText, formatted)
-	h.streamGeneration(w, r, prompt, fps)
+	prompt := llm.BuildImportPrompt(req.RawText)
+	h.streamGeneration(w, r, prompt, avoidTitles, fps)
 }
 
 func (h *GenerateHandler) Refine(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +260,7 @@ func (h *GenerateHandler) Refine(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *GenerateHandler) streamGeneration(w http.ResponseWriter, r *http.Request, prompt string, fingerprints []database.RecipeFingerprint) {
+func (h *GenerateHandler) streamGeneration(w http.ResponseWriter, r *http.Request, prompt string, avoidTitles []string, fingerprints []database.RecipeFingerprint) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming not supported")
@@ -303,7 +275,7 @@ func (h *GenerateHandler) streamGeneration(w http.ResponseWriter, r *http.Reques
 
 	go func() {
 		defer close(events)
-		_, messages, err := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
+		_, messages, err := h.orchestrator.GenerateWithTag(r.Context(), prompt, avoidTitles, events, "generation")
 		if err != nil {
 			log.Printf("Generation error: %v", err)
 			events <- llm.SSEEvent{Type: "error", Message: err.Error()}

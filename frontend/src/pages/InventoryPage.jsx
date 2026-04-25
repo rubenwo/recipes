@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { listInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,
          scanIngredient, listPendingScans, deletePendingScan } from '../api/client';
+import { revalidateInventory } from '../hooks/useInventory';
 
 const EMPTY_FORM = { name: '', amount: '', unit: '', notes: '' };
 let nextLocalId = 1; // local-only IDs for in-flight placeholders
@@ -195,6 +196,7 @@ export default function InventoryPage() {
     try {
       const created = await createInventoryItem(data);
       setItems(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      revalidateInventory();
     } catch (err) {
       alert('Failed to save: ' + err.message);
     } finally {
@@ -208,6 +210,7 @@ export default function InventoryPage() {
       const updated = await updateInventoryItem(id, data);
       setItems(prev => prev.map(it => it.id === id ? updated : it));
       setEditingId(null);
+      revalidateInventory();
     } catch (err) {
       alert('Failed to update: ' + err.message);
     } finally {
@@ -220,6 +223,7 @@ export default function InventoryPage() {
     try {
       await deleteInventoryItem(id);
       setItems(prev => prev.filter(it => it.id !== id));
+      revalidateInventory();
     } catch (err) {
       alert('Failed to delete: ' + err.message);
     }
@@ -230,6 +234,7 @@ export default function InventoryPage() {
     setItems(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     await deletePendingScan(scanId);
     setPendingScans(prev => prev.filter(s => s.id !== scanId));
+    revalidateInventory();
   };
 
   const handleDismiss = async (scanId) => {

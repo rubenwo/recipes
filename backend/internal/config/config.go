@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -53,19 +54,7 @@ func (e EdamamConfig) Enabled() bool {
 
 func (d DatabaseConfig) ConnString() string {
 	return "postgres://" + d.User + ":" + d.Password + "@" + d.Host + ":" +
-		itoa(d.Port) + "/" + d.Name + "?sslmode=" + d.SSLMode
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	s := ""
-	for i > 0 {
-		s = string(rune('0'+i%10)) + s
-		i /= 10
-	}
-	return s
+		strconv.Itoa(d.Port) + "/" + d.Name + "?sslmode=" + d.SSLMode
 }
 
 func Load(path string) (*Config, error) {

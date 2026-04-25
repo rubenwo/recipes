@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -96,6 +97,11 @@ func (h *InventoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// maxScanImageBytes caps the decoded image fed to the vision model.
+// Vision-capable LLMs that fit in 32 GB VRAM choke on multi-MB inputs;
+// the upstream Ollama call also gets slower super-linearly with image size.
+const maxScanImageBytes = 4 * 1024 * 1024 // 4 MB decoded
+
 func (h *InventoryHandler) Scan(w http.ResponseWriter, r *http.Request) {
 	// Accept either multipart form (image file) or JSON with base64
 	contentType := r.Header.Get("Content-Type")
@@ -119,6 +125,11 @@ func (h *InventoryHandler) Scan(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to read image")
 			return
 		}
+		if len(data) > maxScanImageBytes {
+			writeError(w, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("image too large (%d bytes); max %d", len(data), maxScanImageBytes))
+			return
+		}
 		imageB64 = base64.StdEncoding.EncodeToString(data)
 	} else {
 		var body struct {
@@ -126,6 +137,17 @@ func (h *InventoryHandler) Scan(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Image == "" {
 			writeError(w, http.StatusBadRequest, "image (base64) required")
+			return
+		}
+		// Validate decoded length so a JSON client can't bypass the limit.
+		decoded, err := base64.StdEncoding.DecodeString(body.Image)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "image is not valid base64")
+			return
+		}
+		if len(decoded) > maxScanImageBytes {
+			writeError(w, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("image too large (%d bytes); max %d", len(decoded), maxScanImageBytes))
 			return
 		}
 		imageB64 = body.Image

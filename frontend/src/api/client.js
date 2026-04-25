@@ -223,12 +223,18 @@ export function runTranslationNow() {
   return request('/settings/translation/run', { method: 'POST' });
 }
 
-export function generateStream(endpoint, body) {
-  return fetch(`${API_BASE}/generate/${endpoint}`, {
+export async function generateStream(endpoint, body, signal) {
+  const res = await fetch(`${API_BASE}/generate/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Generation failed');
+  }
+  return res;
 }
 
 // ── Inventory ─────────────────────────────────────────

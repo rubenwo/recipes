@@ -235,7 +235,14 @@ func (h *RecipeHandler) Search(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const aiSearchSystemPrompt = `You are a recipe search assistant. Call the library_search tool to find recipes matching the user's request. Extract keywords (ingredients, dish names, cooking style), cuisine, dietary restrictions, tags, and time constraints from the query. Call the tool once.`
+const aiSearchSystemPrompt = `You are a recipe search assistant. Call library_search exactly once to find matching recipes. Extract structured fields from the user's query — do not pass the whole query as keywords.
+
+Examples:
+- "italian pasta dishes under 30 minutes" → {"keywords":"pasta","cuisine_type":"Italian","max_total_minutes":30}
+- "quick vegetarian dinner with chickpeas" → {"keywords":"chickpeas","dietary_restrictions":["vegetarian"],"tags":["quick"]}
+- "spicy chicken curry" → {"keywords":"chicken curry"}
+
+Use the most distinctive 1-3 ingredient/dish words as keywords. Apply cuisine_type, dietary_restrictions, tags, and max_total_minutes when the query implies them.`
 
 func (h *RecipeHandler) AISearch(w http.ResponseWriter, r *http.Request) {
 	var req models.AISearchRequest

@@ -179,9 +179,9 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 	cuisineCounts = llm.SeedCuisineCounts(cuisineCounts)
 
 	for i := 0; i < count; i++ {
-		targetCuisine := leastRepresentedCuisine(cuisineCounts)
-		prompt := llm.BuildBackgroundGeneratePrompt(targetCuisine, llm.AllCuisines(cuisineCounts), titles, i+1, count, servings)
-		recipe := b.generateWithRetry(ctx, prompt, i+1, count, servings, maxRetries, nextRun)
+		targetCuisine := llm.PickLeastRepresentedCuisine(cuisineCounts)
+		prompt := llm.BuildBackgroundGeneratePrompt(targetCuisine, llm.AllCuisines(cuisineCounts), i+1, count, servings)
+		recipe := b.generateWithRetry(ctx, prompt, titles, i+1, count, servings, maxRetries, nextRun)
 		if recipe == nil {
 			continue
 		}
@@ -221,21 +221,6 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 	}
 }
 
-// leastRepresentedCuisine returns the cuisine with the fewest recipes, so background
-// generation can be directed to fill gaps in the collection deterministically.
-// Returns an empty string if counts is empty (model chooses freely).
-func leastRepresentedCuisine(counts map[string]int) string {
-	var best string
-	bestCount := -1
-	for cuisine, count := range counts {
-		if bestCount < 0 || count < bestCount {
-			bestCount = count
-			best = cuisine
-		}
-	}
-	return best
-}
-
 func (b *BackgroundGenerator) saveChat(ctx context.Context, prompt string, messages []llm.Message) {
 	messagesJSON, err := json.Marshal(messages)
 	if err != nil {
@@ -249,7 +234,7 @@ func (b *BackgroundGenerator) saveChat(ctx context.Context, prompt string, messa
 
 // generateWithRetry attempts generation up to 1+maxRetries times, retrying on JSON parse
 // errors or wrong serving count. It stops early if the next scheduled run is imminent.
-func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt string, idx, total, wantServings, maxRetries int, nextRun time.Time) *models.Recipe {
+func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt string, avoidTitles []string, idx, total, wantServings, maxRetries int, nextRun time.Time) *models.Recipe {
 	attempts := 1 + maxRetries
 	for attempt := 1; attempt <= attempts; attempt++ {
 		// Stop if the next run window is less than 30 seconds away.
@@ -266,7 +251,7 @@ func (b *BackgroundGenerator) generateWithRetry(ctx context.Context, prompt stri
 		}()
 
 		// Prefer providers tagged "background" for scheduled tasks (slower/always-on hardware).
-		recipe, messages, err := b.orchestrator.GenerateWithTag(ctx, prompt, events, "background-generation")
+		recipe, messages, err := b.orchestrator.GenerateWithTag(ctx, prompt, avoidTitles, events, "background-generation")
 		if err != nil {
 			if strings.Contains(err.Error(), "failed to parse recipe JSON") && attempt < attempts {
 				log.Printf("Background generation: recipe %d/%d attempt %d/%d failed (invalid JSON), retrying: %v", idx, total, attempt, attempts, err)

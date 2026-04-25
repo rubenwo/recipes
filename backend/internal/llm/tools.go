@@ -31,14 +31,14 @@ var WebSearchTool = Tool{
 	Type: "function",
 	Function: ToolFunction{
 		Name:        "web_search",
-		Description: "Search the web for recipe ideas, cooking techniques, ingredient combinations, or cuisine information. Use this to find inspiration and trending recipes.",
+		Description: "Look up cooking facts you do not already know: traditional ratios for an unfamiliar dish, the source of an obscure recipe, a substitution you cannot infer. Do NOT call for general recipe ideas you can already produce.",
 		Parameters: ToolParameters{
 			Type:     "object",
 			Required: []string{"query"},
 			Properties: map[string]ToolProperty{
 				"query": {
 					Type:        "string",
-					Description: "The search query for finding recipe information",
+					Description: "Specific factual query, e.g. \"authentic ragu bolognese ratio\"",
 				},
 			},
 		},
@@ -49,14 +49,14 @@ var DBSearchTool = Tool{
 	Type: "function",
 	Function: ToolFunction{
 		Name:        "db_search",
-		Description: "Search the user's saved recipe database for existing recipes. Use this to avoid generating duplicates and to build on the user's preferences.",
+		Description: "Check the user's saved library for an existing recipe before generating something similar. Call once at most.",
 		Parameters: ToolParameters{
 			Type:     "object",
 			Required: []string{"query"},
 			Properties: map[string]ToolProperty{
 				"query": {
 					Type:        "string",
-					Description: "Search query to find existing recipes in the database",
+					Description: "Short keyword query, e.g. \"chicken curry\"",
 				},
 			},
 		},

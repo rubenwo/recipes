@@ -4,8 +4,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
 func LoggingMiddleware(next http.Handler) http.Handler {
@@ -31,20 +29,6 @@ func (w *statusWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
-}
-
-// globalLimiter allows 60 requests/second with a burst of 100.
-// The larger burst accommodates batch-generated recipes all loading images simultaneously.
-var globalLimiter = rate.NewLimiter(rate.Limit(60), 100)
-
-func RateLimitMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !globalLimiter.Allow() {
-			http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 // SecurityHeadersMiddleware sets defensive HTTP response headers.

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"math"
@@ -116,7 +117,7 @@ func (h *MealPlanHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
 	// If fewer than 2 DB matches, generate via LLM
 	if len(dbRecipes) < 2 && h.orchestrator != nil {
 		titles, _ := h.queries.ListRecipeTitles(r.Context())
-		prompt := llm.BuildLeftoverPrompt(req.Ingredients, titles)
+		prompt := llm.BuildLeftoverPrompt(req.Ingredients)
 
 		events := make(chan llm.SSEEvent, 10)
 		go func() {
@@ -125,7 +126,7 @@ func (h *MealPlanHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 
-		recipe, _, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, events, "generation")
+		recipe, _, genErr := h.orchestrator.GenerateWithTag(r.Context(), prompt, titles, events, "generation")
 		if genErr == nil && recipe != nil {
 			resp.GeneratedRecipe = recipe
 		}
@@ -262,6 +263,12 @@ func (h *MealPlanHandler) OrderAH(w http.ResponseWriter, r *http.Request) {
 	results := make([]result, len(ingredients))
 	var wg sync.WaitGroup
 
+	// Translation populates a DB cache, which is valuable even if the user
+	// navigates away mid-request. Use a detached context with its own timeout
+	// so cancelled requests still finish their cache-warming work.
+	translateCtx, cancelTranslate := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelTranslate()
+
 	for i, ing := range ingredients {
 		wg.Add(1)
 		go func(idx int, name string) {
@@ -270,7 +277,7 @@ func (h *MealPlanHandler) OrderAH(w http.ResponseWriter, r *http.Request) {
 			defer func() { <-sem }()
 			query := name
 			if h.translator != nil {
-				query = h.translator.Translate(r.Context(), name, "nl")
+				query = h.translator.Translate(translateCtx, name, "nl")
 			}
 			p, err := h.ahClient.SearchProduct(query)
 			results[idx] = result{idx: idx, product: p, err: err}

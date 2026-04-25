@@ -87,11 +87,16 @@ type ChatResponse struct {
 // ---- Ollama-native wire types ----
 
 type ollamaChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Tools    []Tool    `json:"tools,omitempty"`
-	Stream   bool      `json:"stream"`
-	Format   string    `json:"format,omitempty"`
+	Model    string         `json:"model"`
+	Messages []Message      `json:"messages"`
+	Tools    []Tool         `json:"tools,omitempty"`
+	Stream   bool           `json:"stream"`
+	Format   string         `json:"format,omitempty"`
+	Options  *ollamaOptions `json:"options,omitempty"`
+}
+
+type ollamaOptions struct {
+	Temperature *float64 `json:"temperature,omitempty"`
 }
 
 type ollamaChatResponse struct {
@@ -109,6 +114,7 @@ type openAIChatRequest struct {
 	Tools          []Tool            `json:"tools,omitempty"`
 	Stream         bool              `json:"stream"`
 	ResponseFormat *openAIRespFormat `json:"response_format,omitempty"`
+	Temperature    *float64          `json:"temperature,omitempty"`
 }
 
 type openAIRespFormat struct {
@@ -158,16 +164,31 @@ func (c *Client) Chat(ctx context.Context, messages []Message, tools []Tool) (*C
 	})
 }
 
+// jsonModeTemperature is used for all JSON-strict tool calls. Lower temperature
+// reduces schema drift on small models (9B-35B) without harming creativity for
+// recipe content, which is shaped by the user prompt rather than randomness.
+var jsonModeTemperature = 0.2
+
 // ChatJSON calls the model requesting a JSON-formatted response (no tools).
+// Uses a low temperature so JSON-strict outputs (recipes, scans, dedup, translation)
+// stay on-format for small models.
 func (c *Client) ChatJSON(ctx context.Context, messages []Message) (*ChatResponse, error) {
 	if c.providerType == ProviderTypeOpenAICompat {
-		return c.doChatOpenAI(ctx, messages, nil, true)
+		req := openAIChatRequest{
+			Model:          c.model,
+			Messages:       toOpenAIMessages(messages),
+			Stream:         false,
+			ResponseFormat: &openAIRespFormat{Type: "json_object"},
+			Temperature:    &jsonModeTemperature,
+		}
+		return c.doChatOpenAIRaw(ctx, req)
 	}
 	return c.doChatOllama(ctx, ollamaChatRequest{
 		Model:    c.model,
 		Messages: messages,
 		Stream:   false,
 		Format:   "json",
+		Options:  &ollamaOptions{Temperature: &jsonModeTemperature},
 	})
 }
 
@@ -221,7 +242,10 @@ func (c *Client) doChatOpenAI(ctx context.Context, messages []Message, tools []T
 	if jsonMode {
 		req.ResponseFormat = &openAIRespFormat{Type: "json_object"}
 	}
+	return c.doChatOpenAIRaw(ctx, req)
+}
 
+func (c *Client) doChatOpenAIRaw(ctx context.Context, req openAIChatRequest) (*ChatResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
