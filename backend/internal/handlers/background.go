@@ -180,7 +180,7 @@ func (b *BackgroundGenerator) runGeneration(ctx context.Context, count, servings
 
 	for i := 0; i < count; i++ {
 		targetCuisine := leastRepresentedCuisine(cuisineCounts)
-		prompt := llm.BuildBackgroundGeneratePrompt(targetCuisine, titles, i+1, count, servings)
+		prompt := llm.BuildBackgroundGeneratePrompt(targetCuisine, llm.AllCuisines(cuisineCounts), titles, i+1, count, servings)
 		recipe := b.generateWithRetry(ctx, prompt, i+1, count, servings, maxRetries, nextRun)
 		if recipe == nil {
 			continue

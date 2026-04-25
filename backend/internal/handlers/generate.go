@@ -147,7 +147,7 @@ func (h *GenerateHandler) Batch(w http.ResponseWriter, r *http.Request) {
 				tempCounts[slotReq.CuisineType]++
 			}
 		}
-		prompts[i] = llm.BuildGeneratePrompt(slotReq, formatted, nil)
+		prompts[i] = llm.BuildGeneratePrompt(slotReq, formatted, cuisineCounts)
 		prompts[i] += fmt.Sprintf(" (Recipe %d of %d — make it unique from others in this batch)", i+1, req.Count)
 	}
 
