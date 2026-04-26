@@ -8,11 +8,66 @@ export default function SettingsPage() {
   return (
     <div className="settings-page">
       <h2>Settings</h2>
+      <AppearanceSection />
       <FeatureStatusSection />
       <ProvidersSection />
       <GeneralSettings />
       <BackgroundGenerationSettings />
       <BackgroundTranslationSettings />
+    </div>
+  );
+}
+
+function AppearanceSection() {
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('mise-theme') || 'system'; } catch { return 'system'; }
+  });
+
+  const apply = (next) => {
+    setTheme(next);
+    try {
+      if (next === 'system') {
+        localStorage.removeItem('mise-theme');
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        localStorage.setItem('mise-theme', next);
+        document.documentElement.setAttribute('data-theme', next);
+      }
+    } catch {}
+  };
+
+  return (
+    <div className="settings-section">
+      <h3>Appearance</h3>
+      <p className="settings-description">
+        Choose how Mise looks. System follows your operating system preference.
+      </p>
+      <div className="theme-toggle" role="radiogroup" aria-label="Theme">
+        <button
+          role="radio"
+          aria-checked={theme === 'light'}
+          className={theme === 'light' ? 'active' : ''}
+          onClick={() => apply('light')}
+        >
+          Light
+        </button>
+        <button
+          role="radio"
+          aria-checked={theme === 'system'}
+          className={theme === 'system' ? 'active' : ''}
+          onClick={() => apply('system')}
+        >
+          System
+        </button>
+        <button
+          role="radio"
+          aria-checked={theme === 'dark'}
+          className={theme === 'dark' ? 'active' : ''}
+          onClick={() => apply('dark')}
+        >
+          Dark
+        </button>
+      </div>
     </div>
   );
 }

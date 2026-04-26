@@ -32,12 +32,12 @@ export default function RecipePage() {
   if (!recipe) return <p>Recipe not found.</p>;
 
   return (
-    <div className="recipe-page">
-      <div className="recipe-page-actions">
-        <button className="btn btn-secondary" onClick={() => navigate('/library')}>Back to Library</button>
-        <button className="btn btn-danger" onClick={handleDelete}>Delete Recipe</button>
-      </div>
+    <div className="recipe-detail-page">
       <RecipeDetail recipe={recipe} />
+      <div className="recipe-page-actions" style={{ padding: '0 24px', marginTop: 32 }}>
+        <button className="btn btn-secondary" onClick={() => navigate('/library')}>← Back to library</button>
+        <button className="btn btn-danger" onClick={handleDelete} style={{ marginLeft: 'auto' }}>Delete recipe</button>
+      </div>
     </div>
   );
 }
