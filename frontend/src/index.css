@@ -1465,7 +1465,7 @@ a { color: inherit; text-decoration: none; }
   transition: border-color var(--motion-quick), color var(--motion-quick), background var(--motion-quick);
   font-family: var(--font-body);
 }
-.active-plan-nav-tab:hover { border-color: var(--border-strong); color: var(--text); }
+.active-plan-nav-tab:hover:not(.active-plan-nav-tab-active) { border-color: var(--border-strong); color: var(--text); }
 .active-plan-nav-tab-active { background: var(--text); border-color: var(--text); color: var(--surface); font-weight: 600; }
 .active-plan-nav-tab-done { text-decoration: line-through; opacity: 0.55; }
 .active-plan-card { background: var(--surface); border-radius: var(--radius-lg); padding: 28px; border: 1px solid var(--border); }

@@ -30,6 +30,15 @@ func (q *Queries) CreateRecipe(ctx context.Context, r *models.Recipe) error {
 		return fmt.Errorf("marshaling instructions: %w", err)
 	}
 
+	// pgx v5 encodes nil []string as SQL NULL; recipes.dietary_restrictions
+	// and recipes.tags are NOT NULL DEFAULT '{}'. Coerce nil → empty slice.
+	if r.DietaryRestrictions == nil {
+		r.DietaryRestrictions = []string{}
+	}
+	if r.Tags == nil {
+		r.Tags = []string{}
+	}
+
 	return q.pool.QueryRow(ctx, `
 		INSERT INTO recipes (title, description, cuisine_type, prep_time_minutes, cook_time_minutes,
 			servings, difficulty, ingredients, instructions, dietary_restrictions, tags,
