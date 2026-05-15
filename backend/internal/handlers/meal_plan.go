@@ -1386,7 +1386,7 @@ func (h *MealPlanHandler) UpdateRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.queries.UpdatePlanRecipe(r.Context(), planID, recipeID, req.Servings, req.Completed, req.Rating); err != nil {
+	if err := h.queries.UpdatePlanRecipe(r.Context(), planID, recipeID, req.Servings, req.Completed, req.Skipped, req.Rating); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update recipe in plan")
 		return
 	}

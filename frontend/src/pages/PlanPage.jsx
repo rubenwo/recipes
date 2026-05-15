@@ -245,6 +245,18 @@ function PlanDetail({ planId }) {
     revalidateEatCounts();
   };
 
+  const handleSkip = async (recipeId, skipped) => {
+    const updated = await updatePlanRecipe(planId, recipeId, { skipped });
+    setPlan(updated);
+    revalidateEatCounts();
+  };
+
+  const handleRemoveActive = async (recipeId) => {
+    if (!confirm('Remove this recipe from the plan? It will no longer appear in your history.')) return;
+    const updated = await removeRecipeFromPlan(planId, recipeId);
+    setPlan(updated);
+  };
+
   // rating: 1-10 sets, 0 clears, called only when current.completed is true.
   const handleRate = async (recipeId, rating) => {
     const updated = await updatePlanRecipe(planId, recipeId, { rating });
@@ -277,6 +289,7 @@ function PlanDetail({ planId }) {
   const isCompleted = plan.status === 'completed';
   const isDraft = plan.status === 'draft';
   const completedCount = (plan.recipes || []).filter(r => r.completed).length;
+  const resolvedCount = (plan.recipes || []).filter(r => r.completed || r.skipped).length;
 
   return (
     <div className="plan-detail">
@@ -292,9 +305,12 @@ function PlanDetail({ planId }) {
         <ActivePlanView
           plan={plan}
           onComplete={handleComplete}
+          onSkip={handleSkip}
+          onRemove={handleRemoveActive}
           onRate={handleRate}
           onEnd={handleEndPeriod}
           completedCount={completedCount}
+          resolvedCount={resolvedCount}
         />
       )}
 
@@ -530,21 +546,22 @@ function IngredientSummary({ ingredients, planId }) {
   );
 }
 
-function ActivePlanView({ plan, onComplete, onRate, onEnd, completedCount }) {
+function ActivePlanView({ plan, onComplete, onSkip, onRemove, onRate, onEnd, completedCount, resolvedCount }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const recipes = plan.recipes || [];
   const total = recipes.length;
 
   if (total === 0) return <p className="empty-state">No recipes in this plan.</p>;
 
-  const current = recipes[currentIndex];
+  const safeIndex = Math.min(currentIndex, recipes.length - 1);
+  const current = recipes[safeIndex];
 
   return (
     <div className="active-plan">
       <div className="active-plan-progress">
-        <span>{completedCount} of {total} completed</span>
+        <span>{completedCount} cooked · {resolvedCount} of {total} resolved</span>
         <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${(completedCount / total) * 100}%` }} />
+          <div className="progress-fill" style={{ width: `${(resolvedCount / total) * 100}%` }} />
         </div>
       </div>
 
@@ -552,7 +569,7 @@ function ActivePlanView({ plan, onComplete, onRate, onEnd, completedCount }) {
         {recipes.map((r, i) => (
           <button
             key={r.recipe_id}
-            className={`active-plan-nav-tab${i === currentIndex ? ' active-plan-nav-tab-active' : ''}${r.completed ? ' active-plan-nav-tab-done' : ''}`}
+            className={`active-plan-nav-tab${i === safeIndex ? ' active-plan-nav-tab-active' : ''}${r.completed ? ' active-plan-nav-tab-done' : ''}${r.skipped ? ' active-plan-nav-tab-skipped' : ''}`}
             onClick={() => setCurrentIndex(i)}
           >
             {r.recipe?.title || `Recipe ${i + 1}`}
@@ -560,7 +577,7 @@ function ActivePlanView({ plan, onComplete, onRate, onEnd, completedCount }) {
         ))}
       </div>
 
-      <div key={current.recipe_id} className={`active-plan-card ${current.completed ? 'active-plan-card-done' : ''}`}>
+      <div key={current.recipe_id} className={`active-plan-card ${current.completed ? 'active-plan-card-done' : ''} ${current.skipped ? 'active-plan-card-skipped' : ''}`}>
         <RecipeCard recipe={current.recipe} showIngredients showInstructions />
         <div className="active-plan-servings">
           Adjusted servings: <strong>{current.servings}</strong>
@@ -568,12 +585,39 @@ function ActivePlanView({ plan, onComplete, onRate, onEnd, completedCount }) {
             <span className="servings-note"> (original: {current.recipe.servings})</span>
           )}
         </div>
-        <button
-          className={`btn ${current.completed ? 'btn-secondary' : 'btn-primary'} active-plan-complete-btn`}
-          onClick={() => onComplete(current.recipe_id, !current.completed)}
-        >
-          {current.completed ? 'Mark as Not Done' : 'Mark as Done'}
-        </button>
+        {current.skipped ? (
+          <div className="active-plan-skip-notice">
+            <span>Marked as not made.</span>
+            <button className="btn btn-secondary" onClick={() => onSkip(current.recipe_id, false)}>
+              Undo skip
+            </button>
+          </div>
+        ) : (
+          <div className="active-plan-actions">
+            <button
+              className={`btn ${current.completed ? 'btn-secondary' : 'btn-primary'} active-plan-complete-btn`}
+              onClick={() => onComplete(current.recipe_id, !current.completed)}
+            >
+              {current.completed ? 'Mark as Not Done' : 'Mark as Done'}
+            </button>
+            {!current.completed && (
+              <button
+                className="btn btn-secondary"
+                onClick={() => onSkip(current.recipe_id, true)}
+                title="I'm not going to make this one"
+              >
+                Won't make
+              </button>
+            )}
+            <button
+              className="btn btn-danger"
+              onClick={() => onRemove(current.recipe_id)}
+              title="Remove from plan entirely"
+            >
+              Remove
+            </button>
+          </div>
+        )}
         {current.completed && (
           <div className="active-plan-rating">
             <StarRating
@@ -585,7 +629,7 @@ function ActivePlanView({ plan, onComplete, onRate, onEnd, completedCount }) {
         <CookingChat key={current.recipe_id} recipeId={current.recipe_id} />
       </div>
 
-      {completedCount === total && (
+      {resolvedCount === total && (
         <button className="btn btn-primary plan-start-btn" onClick={onEnd}>
           End Period
         </button>
@@ -633,7 +677,9 @@ function CompletedPlanView({ plan }) {
             <div className="completed-plan-item-meta">
               {mpr.completed
                 ? <span className="completed-plan-status completed-plan-status-done">✓ cooked{mpr.completed_at && ` · ${formatDate(mpr.completed_at)}`}</span>
-                : <span className="completed-plan-status completed-plan-status-skipped">✗ not cooked</span>}
+                : mpr.skipped
+                  ? <span className="completed-plan-status completed-plan-status-skipped">– skipped</span>
+                  : <span className="completed-plan-status completed-plan-status-skipped">✗ not cooked</span>}
               {mpr.completed && (
                 <div className="completed-plan-rating">
                   <StarRatingReadOnly value={mpr.rating ?? null} />

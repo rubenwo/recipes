@@ -17,6 +17,7 @@ type MealPlanRecipe struct {
 	Servings    int        `json:"servings"`
 	SortOrder   int        `json:"sort_order"`
 	Completed   bool       `json:"completed"`
+	Skipped     bool       `json:"skipped"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	Rating      *int       `json:"rating,omitempty"`
 	Recipe      Recipe     `json:"recipe"`
@@ -30,9 +31,11 @@ type AddPlanRecipeRequest struct {
 // UpdatePlanRecipeRequest carries optional updates for one plan-recipe row.
 // Rating: omit = leave alone; 0 = clear; 1-10 = set.
 // Completed=false clears completed_at and rating regardless of Rating.
+// Skipped=true also clears completed/completed_at/rating (can't be both).
 type UpdatePlanRecipeRequest struct {
 	Servings  *int  `json:"servings,omitempty"`
 	Completed *bool `json:"completed,omitempty"`
+	Skipped   *bool `json:"skipped,omitempty"`
 	Rating    *int  `json:"rating,omitempty"`
 }
 

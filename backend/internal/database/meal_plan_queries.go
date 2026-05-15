@@ -50,7 +50,7 @@ func (q *Queries) GetMealPlan(ctx context.Context, id int) (*models.MealPlan, er
 	}
 
 	rows, err := q.pool.Query(ctx, `
-		SELECT mpr.id, mpr.recipe_id, mpr.servings, mpr.sort_order, mpr.completed,
+		SELECT mpr.id, mpr.recipe_id, mpr.servings, mpr.sort_order, mpr.completed, mpr.skipped,
 			mpr.completed_at, mpr.rating,
 			r.id, r.title, r.description, r.cuisine_type, r.prep_time_minutes, r.cook_time_minutes,
 			r.servings, r.difficulty, r.ingredients, r.instructions, r.dietary_restrictions, r.tags,
@@ -69,7 +69,7 @@ func (q *Queries) GetMealPlan(ctx context.Context, id int) (*models.MealPlan, er
 		var ingredientsJSON, instructionsJSON []byte
 		var ratingNullable *int16
 		if err := rows.Scan(
-			&mpr.ID, &mpr.RecipeID, &mpr.Servings, &mpr.SortOrder, &mpr.Completed,
+			&mpr.ID, &mpr.RecipeID, &mpr.Servings, &mpr.SortOrder, &mpr.Completed, &mpr.Skipped,
 			&mpr.CompletedAt, &ratingNullable,
 			&mpr.Recipe.ID, &mpr.Recipe.Title, &mpr.Recipe.Description, &mpr.Recipe.CuisineType,
 			&mpr.Recipe.PrepTimeMinutes, &mpr.Recipe.CookTimeMinutes, &mpr.Recipe.Servings,
@@ -244,11 +244,12 @@ func (q *Queries) InvalidatePlanIngredients(ctx context.Context, planID int) err
 	return err
 }
 
-// UpdatePlanRecipe applies any subset of {servings, completed, rating} to one row.
-// Toggling completed=true also stamps completed_at = NOW().
-// Toggling completed=false clears both completed_at AND rating (rating-without-eaten makes no sense).
+// UpdatePlanRecipe applies any subset of {servings, completed, skipped, rating} to one row.
+// Toggling completed=true also stamps completed_at = NOW() and clears skipped.
+// Toggling completed=false clears completed_at AND rating (rating-without-eaten makes no sense).
+// Toggling skipped=true clears completed/completed_at/rating (mutually exclusive states).
 // Rating semantics: nil = leave alone, 0 = clear, 1-10 = set.
-func (q *Queries) UpdatePlanRecipe(ctx context.Context, planID, recipeID int, servings *int, completed *bool, rating *int) error {
+func (q *Queries) UpdatePlanRecipe(ctx context.Context, planID, recipeID int, servings *int, completed *bool, skipped *bool, rating *int) error {
 	if servings != nil {
 		if _, err := q.pool.Exec(ctx, `
 			UPDATE meal_plan_recipes SET servings = $3 WHERE meal_plan_id = $1 AND recipe_id = $2`,
@@ -260,7 +261,7 @@ func (q *Queries) UpdatePlanRecipe(ctx context.Context, planID, recipeID int, se
 		if *completed {
 			if _, err := q.pool.Exec(ctx, `
 				UPDATE meal_plan_recipes
-				SET completed = TRUE,
+				SET completed = TRUE, skipped = FALSE,
 				    completed_at = COALESCE(completed_at, NOW())
 				WHERE meal_plan_id = $1 AND recipe_id = $2`,
 				planID, recipeID); err != nil {
@@ -270,6 +271,24 @@ func (q *Queries) UpdatePlanRecipe(ctx context.Context, planID, recipeID int, se
 			if _, err := q.pool.Exec(ctx, `
 				UPDATE meal_plan_recipes
 				SET completed = FALSE, completed_at = NULL, rating = NULL
+				WHERE meal_plan_id = $1 AND recipe_id = $2`,
+				planID, recipeID); err != nil {
+				return err
+			}
+		}
+	}
+	if skipped != nil {
+		if *skipped {
+			if _, err := q.pool.Exec(ctx, `
+				UPDATE meal_plan_recipes
+				SET skipped = TRUE, completed = FALSE, completed_at = NULL, rating = NULL
+				WHERE meal_plan_id = $1 AND recipe_id = $2`,
+				planID, recipeID); err != nil {
+				return err
+			}
+		} else {
+			if _, err := q.pool.Exec(ctx, `
+				UPDATE meal_plan_recipes SET skipped = FALSE
 				WHERE meal_plan_id = $1 AND recipe_id = $2`,
 				planID, recipeID); err != nil {
 				return err
