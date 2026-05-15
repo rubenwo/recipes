@@ -1112,7 +1112,6 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 	}
 	total := len(req.Servings)
 
-	// Load the current plan to see which recipes are already selected
 	currentPlan, err := h.queries.GetMealPlan(r.Context(), planID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load current plan")
@@ -1121,7 +1120,6 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 	existingCount := len(currentPlan.Recipes)
 	needed := total - existingCount
 	if needed <= 0 {
-		// Plan already has enough recipes; nothing to add
 		writeJSON(w, http.StatusOK, currentPlan)
 		return
 	}
@@ -1131,7 +1129,6 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		existingIDs[mpr.RecipeID] = true
 	}
 
-	// Fetch all recipes (lightweight) and eaten recipe IDs
 	summaries, err := h.queries.ListRecipeSummaries(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list recipes")
@@ -1142,10 +1139,20 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eaten, err := h.queries.ListEatenRecipeIDs(r.Context())
+	everPlaced, err := h.queries.ListEatenRecipeIDs(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to check eaten recipes")
 		return
+	}
+
+	eatStats, err := h.queries.ListRecipeEatCounts(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to fetch recipe stats")
+		return
+	}
+	statsByID := make(map[int]models.RecipeEatStats, len(eatStats))
+	for _, s := range eatStats {
+		statsByID[s.RecipeID] = s
 	}
 
 	excludedIDs := make(map[int]bool, len(req.ExcludedIDs))
@@ -1153,54 +1160,63 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 		excludedIDs[id] = true
 	}
 
-	// Split into new (never eaten), eaten, and excluded pools, excluding already-selected recipes.
-	// Excluded recipes are ones the user manually removed from this plan — they go into a last-resort pool.
-	var newPool, eatenPool, excludedPool []database.RecipeSummary
+	// Build the primary pool (everything not already in this plan and not user-excluded)
+	// and a fallback "excluded" pool used only if the primary pool runs dry.
+	var pool, fallback []database.RecipeSummary
 	for _, s := range summaries {
 		if existingIDs[s.ID] {
 			continue
 		}
 		if excludedIDs[s.ID] {
-			excludedPool = append(excludedPool, s)
+			fallback = append(fallback, s)
 			continue
 		}
-		if eaten[s.ID] {
-			eatenPool = append(eatenPool, s)
-		} else {
-			newPool = append(newPool, s)
+		pool = append(pool, s)
+	}
+
+	now := time.Now()
+	weightFor := func(s database.RecipeSummary) float64 {
+		w := 1.0
+		st, hasStats := statsByID[s.ID]
+		if hasStats && st.AvgRating != nil {
+			// 5★ -> 1.0, 10★ -> 2.0, 1★ -> 0.2. Clamp to avoid zero weight.
+			r := *st.AvgRating / 5.0
+			if r < 0.1 {
+				r = 0.1
+			}
+			w *= r
 		}
+		if hasStats && st.LastCookedAt != nil {
+			age := now.Sub(*st.LastCookedAt)
+			switch {
+			case age < 14*24*time.Hour:
+				w /= 3.0
+			case age < 30*24*time.Hour:
+				w /= 1.5
+			}
+		}
+		if hasStats && st.Count > 0 {
+			// Soft frequency penalty so well-loved recipes don't dominate forever.
+			// Cooked 3×→÷1.3, 10×→÷1.85, capped at ÷3.0.
+			divisor := 1.0 + 0.1*float64(st.Count)
+			if divisor > 3.0 {
+				divisor = 3.0
+			}
+			w /= divisor
+		}
+		if !everPlaced[s.ID] {
+			w *= 1.3
+		}
+		return w
 	}
 
-	// Determine targets: ~50/50, adjusting if a pool is too small
-	newTarget := needed / 2
-	eatenTarget := needed - newTarget
-	if newTarget > len(newPool) {
-		newTarget = len(newPool)
-		eatenTarget = needed - newTarget
-	}
-	if eatenTarget > len(eatenPool) {
-		eatenTarget = len(eatenPool)
-		newTarget = needed - eatenTarget
-	}
-	// Final clamp in case total library is smaller than needed
-	if newTarget > len(newPool) {
-		newTarget = len(newPool)
-	}
-
-	selected := selectDiverse(newPool, newTarget)
-	selected = append(selected, selectDiverse(eatenPool, eatenTarget)...)
-
-	// If we still need more recipes (excluded pool was the only option), fall back to it
+	selected := weightedSample(pool, needed, weightFor)
 	if stillNeeded := needed - len(selected); stillNeeded > 0 {
-		selected = append(selected, selectDiverse(excludedPool, stillNeeded)...)
+		selected = append(selected, weightedSample(fallback, stillNeeded, weightFor)...)
 	}
 
-	// Shuffle the final selection so new and eaten are interleaved
-	rand.Shuffle(len(selected), func(i, j int) {
-		selected[i], selected[j] = selected[j], selected[i]
-	})
+	selected = diversifyCuisines(selected, pool, weightFor)
 
-	// Append new recipes to the plan (servings come from the tail of req.Servings)
 	defaultServings := req.Servings[len(req.Servings)-1]
 	for i, s := range selected {
 		servings := defaultServings
@@ -1224,47 +1240,100 @@ func (h *MealPlanHandler) Randomize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, plan)
 }
 
-// selectDiverse picks n recipes from pool, preferring distinct cuisines.
-func selectDiverse(pool []database.RecipeSummary, n int) []database.RecipeSummary {
-	if n <= 0 {
+// weightedSample draws n items from pool without replacement, using the
+// Efraimidis–Spirakis algorithm: each item gets key = rand^(1/weight), top n keys win.
+func weightedSample(pool []database.RecipeSummary, n int, weightFor func(database.RecipeSummary) float64) []database.RecipeSummary {
+	if n <= 0 || len(pool) == 0 {
 		return nil
 	}
 	if n >= len(pool) {
-		result := make([]database.RecipeSummary, len(pool))
-		copy(result, pool)
-		rand.Shuffle(len(result), func(i, j int) {
-			result[i], result[j] = result[j], result[i]
-		})
-		return result
+		out := make([]database.RecipeSummary, len(pool))
+		copy(out, pool)
+		rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+		return out
 	}
 
-	// Shuffle the pool for randomness
-	shuffled := make([]database.RecipeSummary, len(pool))
-	copy(shuffled, pool)
-	rand.Shuffle(len(shuffled), func(i, j int) {
-		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-	})
+	type keyed struct {
+		s   database.RecipeSummary
+		key float64
+	}
+	scored := make([]keyed, len(pool))
+	for i, s := range pool {
+		w := weightFor(s)
+		if w <= 0 {
+			w = 1e-9
+		}
+		u := rand.Float64()
+		if u <= 0 {
+			u = 1e-12
+		}
+		scored[i] = keyed{s: s, key: math.Pow(u, 1.0/w)}
+	}
+	sort.Slice(scored, func(i, j int) bool { return scored[i].key > scored[j].key })
 
-	// Greedily pick recipes, preferring cuisines not yet selected
-	usedCuisines := map[string]int{}
-	var selected []database.RecipeSummary
+	out := make([]database.RecipeSummary, n)
+	for i := range n {
+		out[i] = scored[i].s
+	}
+	return out
+}
 
-	for len(selected) < n {
-		bestIdx := -1
-		bestCount := math.MaxInt
-		for i, s := range shuffled {
-			c := usedCuisines[s.CuisineType]
-			if c < bestCount {
-				bestCount = c
-				bestIdx = i
+// diversifyCuisines swaps duplicate-cuisine picks for a different-cuisine
+// alternative from the pool, if one is available. Soft preference, not a hard rule:
+// recipes with empty cuisine_type are ignored (treated as "unknown, no swap").
+func diversifyCuisines(selected, pool []database.RecipeSummary, weightFor func(database.RecipeSummary) float64) []database.RecipeSummary {
+	if len(selected) < 2 {
+		return selected
+	}
+	chosenIDs := make(map[int]bool, len(selected))
+	for _, s := range selected {
+		chosenIDs[s.ID] = true
+	}
+
+	cuisineCount := map[string]int{}
+	for _, s := range selected {
+		if s.CuisineType != "" {
+			cuisineCount[s.CuisineType]++
+		}
+	}
+
+	for i, s := range selected {
+		if s.CuisineType == "" || cuisineCount[s.CuisineType] < 2 {
+			continue
+		}
+		var best *database.RecipeSummary
+		var bestKey float64
+		for j := range pool {
+			cand := pool[j]
+			if chosenIDs[cand.ID] || cand.CuisineType == "" {
+				continue
+			}
+			if cuisineCount[cand.CuisineType] > 0 {
+				continue
+			}
+			w := weightFor(cand)
+			if w <= 0 {
+				continue
+			}
+			u := rand.Float64()
+			if u <= 0 {
+				u = 1e-12
+			}
+			k := math.Pow(u, 1.0/w)
+			if best == nil || k > bestKey {
+				c := cand
+				best = &c
+				bestKey = k
 			}
 		}
-		pick := shuffled[bestIdx]
-		selected = append(selected, pick)
-		usedCuisines[pick.CuisineType]++
-		shuffled = append(shuffled[:bestIdx], shuffled[bestIdx+1:]...)
+		if best != nil {
+			cuisineCount[s.CuisineType]--
+			cuisineCount[best.CuisineType]++
+			delete(chosenIDs, s.ID)
+			chosenIDs[best.ID] = true
+			selected[i] = *best
+		}
 	}
-
 	return selected
 }
 
