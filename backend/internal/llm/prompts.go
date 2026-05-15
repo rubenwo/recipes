@@ -140,6 +140,8 @@ func BuildGeneratePrompt(req models.GenerateRequest, cuisineCounts map[string]in
 		prompt += "\n\nThe `cuisine_type` MUST be one of: " + strings.Join(cuisines, ", ") + "."
 	}
 
+	prompt += "\n\nBefore producing the JSON: call `db_search` once with a short keyword query for this cuisine/dish to avoid duplicating an existing recipe, and call `edamam_search` once for an authentic source recipe to adapt. Then output the recipe JSON only."
+
 	return prompt
 }
 
@@ -255,13 +257,12 @@ func SystemPrompt() string {
 
 // SystemPromptWithAvoid returns the base system prompt with an avoid-titles
 // addendum appended. Empty avoidTitles returns the unchanged base prompt.
-// Titles are capped at 30 to keep the prompt token-efficient for small models.
 func SystemPromptWithAvoid(avoidTitles []string) string {
 	if len(avoidTitles) == 0 {
 		return systemPrompt
 	}
-	if len(avoidTitles) > 30 {
-		avoidTitles = avoidTitles[:30]
+	if len(avoidTitles) > 100 {
+		avoidTitles = avoidTitles[:100]
 	}
 	return systemPrompt + "\n\nAvoid these existing titles: " + strings.Join(avoidTitles, ", ") + "."
 }
@@ -326,6 +327,8 @@ func BuildBackgroundGeneratePrompt(targetCuisine string, allCuisines []string, i
 	if total > 1 {
 		prompt += fmt.Sprintf(" (Recipe %d of %d in this batch — make it distinct from the others.)", index, total)
 	}
+
+	prompt += "\n\nBefore producing the JSON: call `db_search` once with a short keyword query for this cuisine/dish to avoid duplicating an existing recipe, and call `edamam_search` once for an authentic source recipe to adapt. Then output the recipe JSON only."
 
 	return prompt
 }
